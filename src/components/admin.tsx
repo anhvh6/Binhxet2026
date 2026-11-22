@@ -179,11 +179,11 @@ export function Admin() {
   }, [top18, team, query]);
 
   // Bảng 3: Bình chọn CSTĐ 2026
-  // Lọc ra các nhân viên đảm bảo đủ các tiêu chí:
+  // Lọc ra các nhân viên đảm bảo đủ cả 2 tiêu chí:
   // 1) Kết quả xếp loại KI năm 2026: Đạt loại A trở lên
-  // 2) Đạt 1 trong các tiêu chuẩn thành tích:
-  //    • là 1 trong 18 người có số phiếu bầu nhiều nhất từ trên xuống (đạt danh hiệu lao động tiên tiến)
-  //    • Có SÁNG KIẾN - Ý TƯỞNG
+  // 2) Đạt CẢ 2 tiêu chuẩn thành tích:
+  //    • Là 1 trong 18 người có số phiếu bầu nhiều nhất từ trên xuống (đạt danh hiệu LĐTT)
+  //    • VÀ có SÁNG KIẾN - Ý TƯỞNG
   const cstdList = useMemo(() => {
     const cstdListSource = data?.cstd ?? [];
     return sortedCandidates
@@ -195,7 +195,7 @@ export function Admin() {
           c.ki?.toUpperCase().startsWith("A");
         if (!isKiA) return false;
 
-        // Tiêu chí 2: Thuộc Top 18 LĐTT HOẶC Có Sáng kiến - Ý tưởng
+        // Tiêu chí 2: Phải đạt CẢ 2 (Thuộc Top 18 LĐTT VÀ có Sáng kiến - Ý tưởng)
         const isTop18 = top18Ids.has(c.id);
         const hasInitiative =
           Boolean(c.initiative) &&
@@ -203,25 +203,10 @@ export function Admin() {
           c.initiative.trim() !== "—" &&
           c.initiative.trim() !== "Không";
 
-        return isTop18 || hasInitiative;
+        return isTop18 && hasInitiative;
       })
       .map((c) => {
-        const isTop18 = top18Ids.has(c.id);
-        const hasInitiative =
-          Boolean(c.initiative) &&
-          c.initiative.trim() !== "" &&
-          c.initiative.trim() !== "—" &&
-          c.initiative.trim() !== "Không";
-
-        let defaultReason = "Đủ chuẩn sơ bộ";
-        if (isTop18 && hasInitiative) {
-          defaultReason = "Top 18 LĐTT + Sáng kiến";
-        } else if (isTop18) {
-          defaultReason = "Top 18 LĐTT (KI loại A)";
-        } else {
-          defaultReason = "Có Sáng kiến (KI loại A)";
-        }
-
+        const defaultReason = "Top 18 LĐTT + Sáng kiến (KI loại A)";
         return {
           ...c,
           cstdState:
@@ -378,7 +363,7 @@ export function Admin() {
                   ? "Xếp theo thứ tự từ cao xuống thấp số lượt được bình chọn trong cột 'Bình chọn LĐTT' không phân biệt team."
                   : tab === "teams"
                     ? "Tổng hợp số nhân sự của từng team nằm trong Top 18 người có số phiếu bầu lớn nhất từ trên xuống (đạt danh hiệu LĐTT) và tỷ lệ % trên 18."
-                    : "Lọc các nhân sự đủ tiêu chuẩn: KI năm 2026 đạt loại A trở lên VÀ (thuộc Top 18 LĐTT có số phiếu bầu nhiều nhất HOẶC có Sáng kiến - Ý tưởng)."}
+                    : "Lọc các nhân sự đủ tiêu chuẩn: KI năm 2026 đạt loại A trở lên, nằm trong Top 18 LĐTT có số phiếu bầu nhiều nhất VÀ có SÁNG KIẾN - Ý TƯỞNG."}
               </p>
             </div>
             <BarChart3 size={24} />

@@ -124,9 +124,9 @@ export async function exportExcel(data: Dashboard) {
   // Bảng 3: Bình chọn CSTĐ 2026
   // Lọc ra các nhân viên đảm bảo đủ các tiêu chí:
   // 1) Kết quả xếp loại KI năm 2026: Đạt loại A trở lên
-  // 2) Đạt 1 trong các tiêu chuẩn thành tích:
-  //    • là 1 trong 18 người có số phiếu bầu nhiều nhất từ trên xuống (đạt danh hiệu lao động tiên tiến)
-  //    • Có SÁNG KIẾN - Ý TƯỞNG
+  // 2) Đạt CẢ 2 tiêu chuẩn thành tích:
+  //    • Là 1 trong 18 người có số phiếu bầu nhiều nhất từ trên xuống (đạt danh hiệu LĐTT)
+  //    • VÀ có SÁNG KIẾN - Ý TƯỞNG
   const cstdCandidates = sorted.filter((c) => {
     const isKiA =
       c.ki === "A" ||
@@ -141,7 +141,7 @@ export async function exportExcel(data: Dashboard) {
       c.initiative.trim() !== "—" &&
       c.initiative.trim() !== "Không";
 
-    return isTop18 || hasInitiative;
+    return isTop18 && hasInitiative;
   });
 
   const cstd = add(
@@ -160,22 +160,7 @@ export async function exportExcel(data: Dashboard) {
       "Bình chọn CSTĐ",
     ],
     cstdCandidates.map((c, i) => {
-      const isTop18 = top18Ids.has(c.id);
-      const hasInitiative =
-        Boolean(c.initiative) &&
-        c.initiative.trim() !== "" &&
-        c.initiative.trim() !== "—" &&
-        c.initiative.trim() !== "Không";
-
-      let defaultStatus = "Đủ chuẩn sơ bộ";
-      if (isTop18 && hasInitiative) {
-        defaultStatus = "Top 18 LĐTT + Sáng kiến";
-      } else if (isTop18) {
-        defaultStatus = "Top 18 LĐTT (KI loại A)";
-      } else {
-        defaultStatus = "Có Sáng kiến (KI loại A)";
-      }
-
+      const defaultStatus = "Top 18 LĐTT + Sáng kiến (KI loại A)";
       return [
         i + 1,
         c.id,

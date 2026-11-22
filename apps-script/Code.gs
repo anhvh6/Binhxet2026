@@ -664,12 +664,12 @@ function syncCstdSheet() {
     var isKiA = (kiStr === 'A' || kiStr === 'A+' || kiStr.indexOf('A') === 0);
     if (!isKiA) return false;
 
-    // Tiêu chí 2: Top 18 LĐTT HOẶC có Sáng kiến - Ý tưởng
+    // Tiêu chí 2: Đạt CẢ 2: Thuộc Top 18 LĐTT VÀ có Sáng kiến - Ý tưởng
     var isTop18 = !!top18Map[c.id];
     var initStr = String(c.initiative || '').trim();
     var hasInitiative = initStr !== '' && initStr !== '—' && initStr !== 'Không';
 
-    return isTop18 || hasInitiative;
+    return isTop18 && hasInitiative;
   });
 
   var teamTop18CountMap = {};
@@ -684,15 +684,7 @@ function syncCstdSheet() {
   ];
 
   var rows = cstdCandidates.map(function(c, i) {
-    var isTop18 = !!top18Map[c.id];
-    var initStr = String(c.initiative || '').trim();
-    var hasInitiative = initStr !== '' && initStr !== '—' && initStr !== 'Không';
-
-    var defaultStatus = 'Đủ chuẩn sơ bộ';
-    if (isTop18 && hasInitiative) defaultStatus = 'Top 18 LĐTT + Sáng kiến';
-    else if (isTop18) defaultStatus = 'Top 18 LĐTT (KI loại A)';
-    else defaultStatus = 'Có Sáng kiến (KI loại A)';
-
+    var defaultStatus = 'Top 18 LĐTT + Sáng kiến (KI loại A)';
     var st = statusMap[c.id] || defaultStatus;
     var countInTeam = teamTop18CountMap[c.team] || 0;
     var teamPctStr = ((countInTeam / 18) * 100).toFixed(1) + '% (' + countInTeam + '/18)';
