@@ -659,9 +659,10 @@ function syncCstdSheet() {
   cstdStatusData.forEach(function(s) { statusMap[s.candidate_id] = s.status; });
 
   var cstdCandidates = ldttData.filter(function(c) {
-    // Tiêu chí 1: KI năm 2026 đạt loại A trở lên
+    // Tiêu chí 1: Điểm TB 3 quý >= 3.5 (quy đổi chuẩn KI loại A theo quy chế 164/HD-CTNS) hoặc ghi nhận loại A
+    var scoreNum = Number(c.score) || 0;
     var kiStr = String(c.ki || '').trim().toUpperCase();
-    var isKiA = (kiStr === 'A' || kiStr === 'A+' || kiStr.indexOf('A') === 0);
+    var isKiA = (scoreNum >= 3.5 || kiStr === 'A' || kiStr === 'A+' || kiStr.indexOf('A') === 0);
     if (!isKiA) return false;
 
     // Tiêu chí 2: Đạt CẢ 2: Thuộc Top 18 LĐTT VÀ có Sáng kiến - Ý tưởng

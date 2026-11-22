@@ -188,8 +188,9 @@ export function Admin() {
     const cstdListSource = data?.cstd ?? [];
     return sortedCandidates
       .filter((c) => {
-        // Tiêu chí 1: KI loại A trở lên
+        // Tiêu chí 1: Điểm TB 3 quý >= 3.5 (quy đổi KI loại A theo quy định TĐKT số 164/HD-CTNS) hoặc ghi nhận loại A
         const isKiA =
+          c.score >= 3.5 ||
           c.ki === "A" ||
           c.ki === "A+" ||
           c.ki?.toUpperCase().startsWith("A");
@@ -363,7 +364,7 @@ export function Admin() {
                   ? "Xếp theo thứ tự từ cao xuống thấp số lượt được bình chọn trong cột 'Bình chọn LĐTT' không phân biệt team."
                   : tab === "teams"
                     ? "Tổng hợp số nhân sự của từng team nằm trong Top 18 người có số phiếu bầu lớn nhất từ trên xuống (đạt danh hiệu LĐTT) và tỷ lệ % trên 18."
-                    : "Lọc các nhân sự đủ tiêu chuẩn: KI năm 2026 đạt loại A trở lên, nằm trong Top 18 LĐTT có số phiếu bầu nhiều nhất VÀ có SÁNG KIẾN - Ý TƯỞNG."}
+                    : "Lọc các nhân sự đủ tiêu chuẩn: Điểm TB 3 quý >= 3.5 (chuẩn KI loại A trở lên), nằm trong Top 18 LĐTT có số phiếu bầu nhiều nhất VÀ có SÁNG KIẾN - Ý TƯỞNG."}
               </p>
             </div>
             <BarChart3 size={24} />

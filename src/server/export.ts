@@ -129,6 +129,7 @@ export async function exportExcel(data: Dashboard) {
   //    • VÀ có SÁNG KIẾN - Ý TƯỞNG
   const cstdCandidates = sorted.filter((c) => {
     const isKiA =
+      c.score >= 3.5 ||
       c.ki === "A" ||
       c.ki === "A+" ||
       c.ki?.toUpperCase().startsWith("A");
