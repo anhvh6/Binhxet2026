@@ -80,7 +80,10 @@ export function BallotScreen() {
     setBusy(true);
     setError("");
     try {
-      await api("ballot/unlock-edit", { code: editCode });
+      await api("ballot/unlock-edit", {
+        code: editCode,
+        voterCode: me?.code,
+      });
       setEditDialog(false);
       setStage("vote");
       setNotice("Đã mở quyền sửa phiếu thành công. Bạn có thể thay đổi các lựa chọn và nộp lại.");
@@ -470,6 +473,40 @@ export function BallotScreen() {
             </section>
           );
         })}
+
+        {/* Khung tìm kiếm mã bí mật khác ở cuối trang xem lại */}
+        {stage === "review" && (
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 my-6 flex flex-wrap items-center justify-between gap-3 shadow-sm">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-slate-700">Xem kết quả của mã bí mật tiếp theo:</span>
+            </div>
+            <div className="flex items-center gap-2 flex-grow sm:flex-grow-0">
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]{4}"
+                maxLength={4}
+                placeholder="Nhập mã khác (4 số)"
+                value={nextReviewCode}
+                onChange={(e) => setNextReviewCode(e.target.value.replace(/\D/g, ""))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && nextReviewCode.length === 4) {
+                    void lookupNextCode();
+                  }
+                }}
+                className="px-3 py-1.5 border border-slate-300 rounded-md text-sm w-44"
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={nextReviewCode.length !== 4 || busy}
+                onClick={() => void lookupNextCode()}
+              >
+                Xem
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Các nút hành động ở màn hình xem lại kết quả */}
         {readOnly && (

@@ -278,17 +278,70 @@ export async function getSupabaseMe(tokenHash: string): Promise<Me | null> {
 }
 
 // 5. MỞ KHÓA SỬA PHIẾU
-export async function unlockSupabaseEdit(tokenHash: string): Promise<boolean> {
+export async function unlockSupabaseEdit(
+  tokenHash: string,
+  voterCode?: string,
+  newTokenHash?: string,
+): Promise<{ voterCode: string } | null> {
   const sb = getSupabase();
-  if (!sb) return false;
+  if (!sb) return null;
 
-  const canEditUntil = new Date(Date.now() + 900000).toISOString(); // 15 phút
-  const res = await sb
-    .from("sessions")
-    .update({ can_edit_until: canEditUntil })
-    .eq("token_hash", tokenHash);
+  let code = voterCode;
 
-  return !res.error;
+  if (!code && tokenHash) {
+    const sessionRes = await sb
+      .from("sessions")
+      .select("voter_code")
+      .eq("token_hash", tokenHash)
+      .maybeSingle();
+    code = sessionRes.data?.voter_code;
+  }
+
+  if (!code) {
+    throw new AppError("Không xác định được mã bí mật cần sửa.", 400);
+  }
+
+  const credRes = await sb
+    .from("voter_credentials")
+    .select("code, status")
+    .eq("code", code)
+    .single();
+
+  if (credRes.error || !credRes.data) {
+    throw new AppError("Mã bí mật không tồn tại trong hệ thống.", 404);
+  }
+
+  if (["Bị khóa", "Đã thu hồi"].includes(credRes.data.status)) {
+    throw new AppError("Mã bí mật này đã bị khóa hoặc thu hồi.", 403);
+  }
+
+  const now = Date.now();
+  const canEditUntil = new Date(now + 900000).toISOString(); // 15 phút
+  const expiresAt = new Date(now + 3600000).toISOString(); // 1 giờ
+  const hashToUse = newTokenHash || tokenHash;
+
+  await Promise.all([
+    sb.from("sessions").upsert({
+      token_hash: hashToUse,
+      role: "voter",
+      voter_code: code,
+      can_edit_until: canEditUntil,
+      expires_at: expiresAt,
+    }),
+    sb
+      .from("voter_credentials")
+      .update({ status: "Được phép sửa", updated_at: new Date().toISOString() })
+      .eq("code", code),
+    sb
+      .from("audit_logs")
+      .insert({
+        actor: code,
+        event: "EDIT_UNLOCK",
+        details: { message: "Mở quyền sửa phiếu thành công" },
+      }),
+  ]);
+
+  return { voterCode: code };
 }
 
 // 6. NỘP PHIẾU VÀO SUPABASE

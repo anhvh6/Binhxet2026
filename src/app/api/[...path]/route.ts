@@ -80,7 +80,19 @@ async function handle(req: NextRequest) {
       if (isSupabaseEnabled()) {
         try {
           const sbReview = await reviewSupabaseCode(input.code);
-          if (sbReview) return response(sbReview);
+          if (sbReview) {
+            const nextToken = token();
+            await loginSupabaseVoter(input.code, hash(nextToken)).catch(() => {});
+            const res = response(sbReview);
+            res.cookies.set(cookieName, nextToken, {
+              httpOnly: true,
+              secure: process.env.NODE_ENV === "production",
+              sameSite: "strict",
+              path: "/",
+              maxAge: 3600,
+            });
+            return res;
+          }
         } catch (e) {
           if ((e as Error).message.includes("chưa nộp phiếu")) {
             throw new AppError((e as Error).message, 404);
@@ -167,9 +179,68 @@ async function handle(req: NextRequest) {
       return res;
     }
 
+    // 6. MỞ KHÓA SỬA PHIẾU
+    if (!read && path === "ballot/unlock-edit") {
+      const input = z
+        .object({
+          code: z.string().regex(/^\d{4}$/),
+          voterCode: z.string().regex(/^\d{4}$/).optional(),
+        })
+        .parse(p);
+
+      const isVerified = verifySecret(input.code, "BALLOT_EDIT_CODE_HASH");
+      if (!isVerified) throw new AppError("Mã xác nhận sửa phiếu không chính xác.", 401);
+
+      const nextToken = token();
+      const nextHash = hash(nextToken);
+
+      if (isSupabaseEnabled()) {
+        try {
+          const unlocked = await unlockSupabaseEdit(tokenHash, input.voterCode, nextHash);
+          if (unlocked) {
+            void bridge("unlock", {
+              tokenHash: nextHash,
+              verified: isVerified,
+            }).catch(() => {});
+
+            const res = response({ ok: true, voterCode: unlocked.voterCode });
+            res.cookies.set(cookieName, nextToken, {
+              httpOnly: true,
+              secure: process.env.NODE_ENV === "production",
+              sameSite: "strict",
+              path: "/",
+              maxAge: 3600,
+            });
+            return res;
+          }
+        } catch (e) {
+          if (e instanceof AppError) throw e;
+          throw new AppError((e as Error).message || "Không thể mở quyền sửa phiếu.", 400);
+        }
+      }
+
+      if (!session && !input.voterCode) throw new AppError("Vui lòng đăng nhập.", 401);
+
+      const resBridge = await bridge("unlock", {
+        tokenHash,
+        verified: isVerified,
+        newTokenHash: nextHash,
+      });
+
+      const res = response(resBridge);
+      res.cookies.set(cookieName, nextToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        path: "/",
+        maxAge: 3600,
+      });
+      return res;
+    }
+
     if (!session) throw new AppError("Vui lòng đăng nhập.", 401);
 
-    // 6. THÔNG TIN PHIẾU CỦA USER HIỆN TẠI
+    // 7. THÔNG TIN PHIẾU CỦA USER HIỆN TẠI
     if (read && ["ballot/me", "candidates", "teams"].includes(path)) {
       if (isSupabaseEnabled()) {
         try {
@@ -180,7 +251,7 @@ async function handle(req: NextRequest) {
       return response(await bridge("me", { tokenHash }));
     }
 
-    // 7. NỘP VÀ XÁC THỰC PHIẾU BÌNH CHỌN
+    // 8. NỘP VÀ XÁC THỰC PHIẾU BÌNH CHỌN
     if (
       !read &&
       ["ballot/validate", "ballot/submit", "ballot"].includes(path)
@@ -219,30 +290,6 @@ async function handle(req: NextRequest) {
         await bridge(path === "ballot/validate" ? "validate" : "submit", {
           ...input,
           tokenHash,
-        }),
-      );
-    }
-
-    // 8. MỞ KHÓA SỬA PHIẾU
-    if (!read && path === "ballot/unlock-edit") {
-      const code = z
-        .string()
-        .regex(/^\d{4}$/)
-        .parse(p.code);
-
-      const isVerified = verifySecret(code, "BALLOT_EDIT_CODE_HASH");
-      if (!isVerified) throw new AppError("Mã xác nhận sửa phiếu không chính xác.", 401);
-
-      if (isSupabaseEnabled()) {
-        try {
-          await unlockSupabaseEdit(tokenHash);
-        } catch {}
-      }
-
-      return response(
-        await bridge("unlock", {
-          tokenHash,
-          verified: isVerified,
         }),
       );
     }
