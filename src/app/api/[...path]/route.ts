@@ -12,6 +12,7 @@ import {
 } from "@/server/bridge";
 import { exportExcel } from "@/server/export";
 import type { Dashboard } from "@/lib/types";
+import { sameOrigin } from "@/server/origin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -27,7 +28,7 @@ async function handle(req: NextRequest) {
       read = req.method === "GET";
     if (!read) {
       const origin = req.headers.get("origin");
-      if (!origin || origin !== req.nextUrl.origin)
+      if (!sameOrigin(origin, req.headers.get('host')))
         throw new AppError("Nguồn yêu cầu không hợp lệ.", 403);
       if (Number(req.headers.get("content-length") ?? 0) > 30000)
         throw new AppError("Yêu cầu quá lớn.", 413);

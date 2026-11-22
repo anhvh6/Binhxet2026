@@ -19,7 +19,7 @@ Mở http://127.0.0.1:3000. Khi chưa cấu hình backend, trang chủ hiển th
 
 1. Mở https://script.google.com, tạo **một** dự án dùng cho kỳ này, đặt tên VCX – Bình xét 2026.
 2. Dán `apps-script/Code.gs` vào file mã.
-3. Cài đặt dự án → bật hiển thị appsscript.json → thay bằng `apps-script/appsscript.json`. Manifest chỉ yêu cầu quyền Sheets và gọi HTTP ngoài để sử dụng Sheets API.
+3. Cài đặt dự án → bật hiển thị appsscript.json → thay bằng `apps-script/appsscript.json`. Manifest bật dịch vụ nâng cao Google Sheets API v4 và yêu cầu quyền Sheets/call HTTP. Nếu cấu hình bằng UI, vào Dịch vụ → Thêm dịch vụ → Google Sheets API → v4. Với dự án GCP mặc định, thao tác này bật Sheets API cho backend; dự án GCP tùy chỉnh phải bật API trong Cloud Console.
 4. Thuộc tính tập lệnh: `SPREADSHEET_ID=1_m3YR8j_MobxiKh7UXFdjEsIM9pEuuP3ijrZCvP-rvE`, `BRIDGE_SECRET=<khóa ngẫu nhiên ít nhất 32 byte, giống Vercel>`.
 5. Tài khoản triển khai phải có quyền chỉnh sửa Google Sheet. Chạy hàm `setup` một lần và tự xác nhận màn hình quyền Google. Hàm chỉ tạo các tab hệ thống thiếu, không xóa tab nguồn và không tạo lại mã đã có.
 6. Triển khai → Lần triển khai mới → Ứng dụng web → thực thi dưới tài khoản của bạn; quyền truy cập **Bất kỳ ai**. Endpoint chỉ nhận POST có chữ ký HMAC hợp lệ; GET không trả dữ liệu. Lưu URL kết thúc bằng `/exec` vào `GOOGLE_APPS_SCRIPT_URL`.
