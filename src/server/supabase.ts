@@ -97,21 +97,30 @@ export async function loginSupabaseVoter(code: string, tokenHash: string): Promi
     lead: t.lead,
   }));
 
-  const candidates: Candidate[] = (candidatesRes.data || []).map((c) => ({
-    id: c.id,
-    name: c.name,
-    team: c.team_id,
-    lead: c.is_lead,
-    score: Number(c.score),
-    ki: c.ki,
-    initiative: c.initiative,
-    reward: c.reward,
-    tenure: c.tenure,
-    performance: c.performance,
-    other: "",
-    basis: c.basis,
-    cstd: c.cstd,
-  }));
+  const candidates: Candidate[] = (candidatesRes.data || [])
+    .map((c) => ({
+      id: c.id,
+      name: c.name,
+      team: c.team_id,
+      lead: c.is_lead,
+      score: Number(c.score),
+      ki: c.ki,
+      initiative: c.initiative,
+      reward: c.reward,
+      tenure: c.tenure,
+      performance: c.performance,
+      other: "",
+      basis: c.basis,
+      cstd: c.cstd,
+    }))
+    .sort((a, b) => {
+      const orderA = teams.findIndex((t) => t.id === a.team);
+      const orderB = teams.findIndex((t) => t.id === b.team);
+      if (orderA !== orderB) return orderA - orderB;
+      if (a.lead && !b.lead) return -1;
+      if (!a.lead && b.lead) return 1;
+      return b.score - a.score || a.id.localeCompare(b.id);
+    });
 
   const snapshot: Snapshot = {
     candidates,
@@ -198,21 +207,30 @@ export async function reviewSupabaseCode(code: string): Promise<ReviewResult | n
     lead: t.lead,
   }));
 
-  const candidates: Candidate[] = (candidatesRes.data || []).map((c) => ({
-    id: c.id,
-    name: c.name,
-    team: c.team_id,
-    lead: c.is_lead,
-    score: Number(c.score),
-    ki: c.ki,
-    initiative: c.initiative,
-    reward: c.reward,
-    tenure: c.tenure,
-    performance: c.performance,
-    other: "",
-    basis: c.basis,
-    cstd: c.cstd,
-  }));
+  const candidates: Candidate[] = (candidatesRes.data || [])
+    .map((c) => ({
+      id: c.id,
+      name: c.name,
+      team: c.team_id,
+      lead: c.is_lead,
+      score: Number(c.score),
+      ki: c.ki,
+      initiative: c.initiative,
+      reward: c.reward,
+      tenure: c.tenure,
+      performance: c.performance,
+      other: "",
+      basis: c.basis,
+      cstd: c.cstd,
+    }))
+    .sort((a, b) => {
+      const orderA = teams.findIndex((t) => t.id === a.team);
+      const orderB = teams.findIndex((t) => t.id === b.team);
+      if (orderA !== orderB) return orderA - orderB;
+      if (a.lead && !b.lead) return -1;
+      if (!a.lead && b.lead) return 1;
+      return b.score - a.score || a.id.localeCompare(b.id);
+    });
 
   const election = {
     id: electionRes.data.id,
@@ -632,21 +650,30 @@ export async function validateSupabaseBallot(
     lead: t.lead,
   }));
 
-  const candidates: Candidate[] = (candidatesRes.data || []).map((c) => ({
-    id: c.id,
-    name: c.name,
-    team: c.team_id,
-    lead: c.is_lead,
-    score: Number(c.score),
-    ki: c.ki,
-    initiative: c.initiative,
-    reward: c.reward,
-    tenure: c.tenure,
-    performance: c.performance,
-    other: "",
-    basis: c.basis,
-    cstd: c.cstd,
-  }));
+  const candidates: Candidate[] = (candidatesRes.data || [])
+    .map((c) => ({
+      id: c.id,
+      name: c.name,
+      team: c.team_id,
+      lead: c.is_lead,
+      score: Number(c.score),
+      ki: c.ki,
+      initiative: c.initiative,
+      reward: c.reward,
+      tenure: c.tenure,
+      performance: c.performance,
+      other: "",
+      basis: c.basis,
+      cstd: c.cstd,
+    }))
+    .sort((a, b) => {
+      const orderA = teams.findIndex((t) => t.id === a.team);
+      const orderB = teams.findIndex((t) => t.id === b.team);
+      if (orderA !== orderB) return orderA - orderB;
+      if (a.lead && !b.lead) return -1;
+      if (!a.lead && b.lead) return 1;
+      return b.score - a.score || a.id.localeCompare(b.id);
+    });
 
   const snapshot: Snapshot = {
     candidates,

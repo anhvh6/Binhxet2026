@@ -13,7 +13,19 @@ var TABS = {
  requests:['YEU CAU DA XU LY',['Mã bình chọn','Idempotency key','Digest','Response JSON']],
  limits:['GIOI HAN TRUY CAP',['Khóa','Số lần','Hết hạn']]
 };
-function props(){return PropertiesService.getScriptProperties();}
+var DEFAULT_SPREADSHEET_ID = '1_m3YR8j_MobxiKh7UXFdjEsIM9pEuuP3ijrZCvP-rvE';
+
+function props(){
+  try {
+    return PropertiesService.getScriptProperties();
+  } catch(_) {
+    return {
+      getProperty: function() { return null; },
+      setProperty: function() {}
+    };
+  }
+}
+
 function book(){
   var active = null;
   try { active = SpreadsheetApp.getActiveSpreadsheet(); } catch(_) {}
@@ -26,9 +38,14 @@ function book(){
     } catch (_) {}
     return active;
   }
-  var id = props().getProperty('SPREADSHEET_ID');
-  if (id) return SpreadsheetApp.openById(id);
-  fail('Chưa cấu hình SPREADSHEET_ID. Vui lòng mở trực tiếp trên Google Sheet hoặc cấu hình SPREADSHEET_ID.', 503);
+  var id = null;
+  try { id = props().getProperty('SPREADSHEET_ID'); } catch(_) {}
+  if (!id) id = DEFAULT_SPREADSHEET_ID;
+  try {
+    return SpreadsheetApp.openById(id);
+  } catch(e) {
+    fail('Không thể mở Google Sheet (ID: ' + id + '): ' + e.message, 503);
+  }
 }
 function fail(message,status){var e=new Error(message);e.status=status||400;throw e;}
 function sha(value){return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,String(value),Utilities.Charset.UTF_8).map(function(b){return ('0'+(b&255).toString(16)).slice(-2);}).join('');}
@@ -72,8 +89,21 @@ function commit(requests){
 }
 function log(actor,event,details){return append('audit',[[new Date().toISOString(),actor,event,JSON.stringify(details||{})]]);}
 function readSource(){
- var ss=book(),p=ss.getSheetByName('PTUD (2)').getRange('A1:BG200').getDisplayValues(),b=ss.getSheetByName('Binh xet').getRange('A1:BG200').getDisplayValues(),t=ss.getSheetByName('TONG HOP TEAM').getRange('A1:G30').getDisplayValues();
- return parseSource(p,b,t);
+  var ss = book();
+  var sheetPtud = ss.getSheetByName('PTUD (2)') || ss.getSheetByName('PTUD');
+  if (!sheetPtud) fail('Không tìm thấy sheet "PTUD (2)" trên file Google Sheets.', 404);
+
+  var sheetBinhXet = ss.getSheetByName('Binh xet') || ss.getSheetByName('Binh_xet') || ss.getSheetByName('Bình xét') || ss.getSheetByName('Bình_xét');
+  if (!sheetBinhXet) fail('Không tìm thấy sheet "Binh xet" trên file Google Sheets.', 404);
+
+  var sheetTeam = ss.getSheetByName('TONG HOP TEAM') || ss.getSheetByName('KET QUA TEAM') || ss.getSheetByName('TEAM');
+  if (!sheetTeam) fail('Không tìm thấy sheet "TONG HOP TEAM" hoặc "KET QUA TEAM" trên file Google Sheets.', 404);
+
+  var p = sheetPtud.getRange('A1:BG200').getDisplayValues();
+  var b = sheetBinhXet.getRange('A1:BG200').getDisplayValues();
+  var t = sheetTeam.getRange('A1:G30').getDisplayValues();
+
+  return parseSource(p, b, t);
 }
 function parseSource(p,b,t){
  var conflicts=[],warnings=[],map={},official={},people=[];
@@ -929,7 +959,8 @@ function pushAllToSupabase() {
  */
 function pushCurrentSheetToSupabase() {
   var ui = SpreadsheetApp.getUi();
-  var activeSheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var ss = book();
+  var activeSheet = ss.getActiveSheet();
   var name = activeSheet.getName().trim();
   var upperName = name.toUpperCase();
 

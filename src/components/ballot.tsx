@@ -345,16 +345,24 @@ export function BallotScreen() {
 
         {/* Danh sách ứng viên theo từng team */}
         {teams.map((team) => {
-          const people = candidates.filter(
-            (c) =>
-              c.team === team.id &&
-              (!onlySelected || selected.includes(c.id)) &&
-              (!query ||
-                onlySelected ||
-                `${c.name} ${c.id}`
-                  .toLocaleLowerCase("vi")
-                  .includes(query.toLocaleLowerCase("vi"))),
-          );
+          const people = candidates
+            .filter(
+              (c) =>
+                c.team === team.id &&
+                (!onlySelected || selected.includes(c.id)) &&
+                (!query ||
+                  onlySelected ||
+                  `${c.name} ${c.id}`
+                    .toLocaleLowerCase("vi")
+                    .includes(query.toLocaleLowerCase("vi"))),
+            )
+            .sort((a, b) => {
+              // Team Lead luôn ở đầu danh sách mỗi team
+              if (a.lead && !b.lead) return -1;
+              if (!a.lead && b.lead) return 1;
+              // Sau đó sắp xếp theo Điểm TB 3 quý giảm dần -> MNV
+              return b.score - a.score || a.id.localeCompare(b.id);
+            });
 
           if (onlySelected && people.length === 0) return null;
 
