@@ -133,6 +133,11 @@ function parseSource(p,b,t){
     ];
     teams = defaultTeams;
   }
+  teams.forEach(function(t) {
+    if (t.id === 'QA' && (!t.lead || t.lead === 'Chưa xác định Lead')) {
+      t.lead = 'Võ Hoàng Anh';
+    }
+  });
   b.filter(personnel).forEach(function(r){
   var source=map[r[1]];if(official[r[1]])conflicts.push('MNV trùng ở Binh xet: '+r[1]);official[r[1]]=true;
   if(!source||!/^Đạt/.test(source[45])||!/Đủ chuẩn/.test(source[52]))conflicts.push('Không khớp điều kiện PTUD/Binh xet: '+r[1]);

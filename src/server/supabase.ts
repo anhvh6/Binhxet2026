@@ -94,7 +94,7 @@ export async function loginSupabaseVoter(code: string, tokenHash: string): Promi
     order: t.order_index,
     size: t.size,
     quota: t.quota,
-    lead: t.lead,
+    lead: t.id === "QA" ? "Võ Hoàng Anh" : t.lead,
   }));
 
   const candidates: Candidate[] = (candidatesRes.data || [])
@@ -102,7 +102,7 @@ export async function loginSupabaseVoter(code: string, tokenHash: string): Promi
       id: c.id,
       name: c.name,
       team: c.team_id,
-      lead: c.is_lead,
+      lead: c.id === "091579" ? true : Boolean(c.is_lead),
       score: Number(c.score),
       ki: c.ki,
       initiative: c.initiative,
@@ -204,7 +204,7 @@ export async function reviewSupabaseCode(code: string): Promise<ReviewResult | n
     order: t.order_index,
     size: t.size,
     quota: t.quota,
-    lead: t.lead,
+    lead: t.id === "QA" ? "Võ Hoàng Anh" : t.lead,
   }));
 
   const candidates: Candidate[] = (candidatesRes.data || [])
@@ -212,7 +212,7 @@ export async function reviewSupabaseCode(code: string): Promise<ReviewResult | n
       id: c.id,
       name: c.name,
       team: c.team_id,
-      lead: c.is_lead,
+      lead: c.id === "091579" ? true : Boolean(c.is_lead),
       score: Number(c.score),
       ki: c.ki,
       initiative: c.initiative,
@@ -649,7 +649,7 @@ export async function validateSupabaseBallot(
     order: t.order_index,
     size: t.size,
     quota: t.quota,
-    lead: t.lead,
+    lead: t.id === "QA" ? "Võ Hoàng Anh" : t.lead,
   }));
 
   const candidates: Candidate[] = (candidatesRes.data || [])
@@ -657,7 +657,7 @@ export async function validateSupabaseBallot(
       id: c.id,
       name: c.name,
       team: c.team_id,
-      lead: c.is_lead,
+      lead: c.id === "091579" ? true : Boolean(c.is_lead),
       score: Number(c.score),
       ki: c.ki,
       initiative: c.initiative,
