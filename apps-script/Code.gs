@@ -612,21 +612,24 @@ function syncTeamSheet() {
   var totalNv = 0;
   var totalTop18 = top18.length;
 
-  var headers = ['STT', 'Team', 'Tổng số NV', 'Số người được chọn', 'Tỷ lệ %'];
+  var headers = ['STT', 'Team', 'Tổng số NV', 'Số người được chọn (Top 18)', 'Tỷ lệ % (chiếm % của 18)', 'Danh sách nhân sự lọt Top 18'];
   var rows = teamsData.map(function(t, i) {
     var size = Number(t.size) || 0;
     totalNv += size;
-    var top18InTeam = top18.filter(function(c) { return c.team === t.id; }).length;
+    var inTeam = top18.filter(function(c) { return c.team === t.id; });
+    var top18InTeam = inTeam.length;
     var pct = top18InTeam / 18;
+    var members = inTeam.map(function(c) { return c.name; }).join(', ');
     return [
       i + 1,
       t.id,
       size,
       top18InTeam,
-      pct
+      pct,
+      members || 'Chưa có'
     ];
   });
-  rows.push(['Tổng cộng', '', totalNv, totalTop18, totalTop18 / 18]);
+  rows.push(['Tổng cộng', '', totalNv, totalTop18, totalTop18 / 18, '18 người lọt Top']);
 
   var sheet = writeToSheet('TONG HOP TEAM', headers, rows);
   if (rows.length > 0) {
@@ -669,10 +672,15 @@ function syncCstdSheet() {
     return isTop18 || hasInitiative;
   });
 
+  var teamTop18CountMap = {};
+  top18.forEach(function(c) {
+    teamTop18CountMap[c.team] = (teamTop18CountMap[c.team] || 0) + 1;
+  });
+
   var headers = [
     'STT', 'MNV', 'Họ Và Tên', 'Team', 'Số Bình chọn LĐTT',
     'Tỷ lệ chọn (%)', 'Điểm TB 3 quý', 'Xếp loại KI dự kiến',
-    'Sáng kiến - Ý Tưởng', 'Khen thưởng ĐV + TĐ', 'Bình chọn CSTĐ'
+    'Sáng kiến - Ý Tưởng', 'Khen thưởng ĐV + TĐ', 'Tỷ lệ % Team trong Top 18', 'Tiêu chuẩn CSTĐ thỏa mãn'
   ];
 
   var rows = cstdCandidates.map(function(c, i) {
@@ -686,6 +694,8 @@ function syncCstdSheet() {
     else defaultStatus = 'Có Sáng kiến (KI loại A)';
 
     var st = statusMap[c.id] || defaultStatus;
+    var countInTeam = teamTop18CountMap[c.team] || 0;
+    var teamPctStr = ((countInTeam / 18) * 100).toFixed(1) + '% (' + countInTeam + '/18)';
 
     return [
       i + 1,
@@ -698,6 +708,7 @@ function syncCstdSheet() {
       c.ki || '',
       c.initiative || '',
       c.reward || '',
+      teamPctStr,
       st
     ];
   });

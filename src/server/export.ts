@@ -86,6 +86,17 @@ export async function exportExcel(data: Dashboard) {
   const top18 = sorted.slice(0, 18);
   const top18Ids = new Set(top18.map((c) => c.id));
 
+  // Thống kê % của từng team trong top 18
+  const teamPctMap: Record<string, { count: number; pctStr: string; members: string[] }> = {};
+  for (const t of data.teams) {
+    const inTeam = top18.filter((c) => c.team === t.id);
+    teamPctMap[t.id] = {
+      count: inTeam.length,
+      pctStr: ((inTeam.length / 18) * 100).toFixed(1) + "%",
+      members: inTeam.map((c) => c.name),
+    };
+  }
+
   // Bảng 2: TONG HOP TEAM (Số người trong team thuộc Top 18 LĐTT và Tỷ lệ % trên 18)
   const teamRows = data.teams.map((t, i) => {
     const top18InTeam = top18.filter((c) => c.team === t.id).length;

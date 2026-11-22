@@ -137,6 +137,21 @@ export function Admin() {
     );
   }, [sortedCandidates, team, query]);
 
+  // Thống kê tỷ lệ % của từng team trong Top 18
+  const teamStatsMap = useMemo(() => {
+    const map: Record<string, { count: number; percentage: string; members: string[] }> = {};
+    if (!data?.teams) return map;
+    for (const t of data.teams) {
+      const inTeam = top18.filter((c) => c.team === t.id);
+      map[t.id] = {
+        count: inTeam.length,
+        percentage: ((inTeam.length / 18) * 100).toFixed(1),
+        members: inTeam.map((c) => c.name),
+      };
+    }
+    return map;
+  }, [data?.teams, top18]);
+
   // Bảng 2: Tổng hợp theo Team (số người được chọn là số người trong team nằm trong top 18 người có số phiếu lớn nhất và tỷ lệ % trên 18)
   const teamSummary = useMemo(() => {
     if (!data?.teams) return [];
@@ -147,9 +162,21 @@ export function Admin() {
         ...t,
         top18Count: top18InTeam,
         percentage,
+        members: teamStatsMap[t.id]?.members ?? [],
       };
     });
-  }, [data?.teams, top18]);
+  }, [data?.teams, top18, teamStatsMap]);
+
+  // Danh sách chi tiết các cán bộ nhân viên thỏa mãn điều kiện lọt Top 18 LĐTT
+  const top18Filtered = useMemo(() => {
+    return top18.filter(
+      (c) =>
+        (!team || c.team === team) &&
+        `${c.id} ${c.name}`
+          .toLocaleLowerCase("vi")
+          .includes(query.toLocaleLowerCase("vi")),
+    );
+  }, [top18, team, query]);
 
   // Bảng 3: Bình chọn CSTĐ 2026
   // Lọc ra các nhân viên đảm bảo đủ các tiêu chí:
@@ -455,48 +482,159 @@ export function Admin() {
               </table>
             ) : tab === "teams" ? (
               /* BẢNG 2: TỔNG HỢP THEO TEAM */
-              <table>
-                <thead>
-                  <tr>
-                    <th>STT</th>
-                    <th>Team</th>
-                    <th>Tổng số NV</th>
-                    <th>Số người được chọn</th>
-                    <th>Tỷ lệ %</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {teamSummary.map((t, i) => (
-                    <tr key={t.id}>
-                      <td>{i + 1}</td>
-                      <td>
-                        <strong>{t.id}</strong>
-                      </td>
-                      <td>{t.size}</td>
-                      <td>
-                        <strong className="vote-value">{t.top18Count}</strong> người
-                      </td>
-                      <td>
-                        <span className="font-semibold text-emerald-700">
-                          {t.percentage}%
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                  <tr className="total-row">
-                    <td colSpan={2}>Tổng cộng</td>
-                    <td>{total}</td>
-                    <td>
-                      <strong className="vote-value">{totalTop18Count}</strong> người
-                    </td>
-                    <td>
-                      <strong className="text-emerald-700">
-                        {totalTop18Pct}%
-                      </strong>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+              <div className="space-y-8">
+                {/* 1. BẢNG TỔNG HỢP CƠ CẤU 7 TEAM */}
+                <div>
+                  <div className="mb-3">
+                    <h4 className="text-sm font-bold text-slate-800">
+                      1. Tổng hợp cơ cấu số lượng &amp; tỷ lệ % của từng Team trong Top 18
+                    </h4>
+                  </div>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>STT</th>
+                        <th>Team</th>
+                        <th>Tổng số NV</th>
+                        <th>Số người được chọn (Top 18)</th>
+                        <th>Tỷ lệ % (chiếm % của 18)</th>
+                        <th>Danh sách nhân sự lọt Top 18</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {teamSummary.map((t, i) => (
+                        <tr key={t.id}>
+                          <td>{i + 1}</td>
+                          <td>
+                            <strong>{t.id}</strong>
+                          </td>
+                          <td>{t.size}</td>
+                          <td>
+                            <strong className="vote-value">{t.top18Count}</strong> người
+                          </td>
+                          <td>
+                            <span className="font-semibold text-emerald-700">
+                              {t.percentage}%
+                            </span>
+                          </td>
+                          <td>
+                            {t.members && t.members.length > 0 ? (
+                              <span className="font-medium text-slate-900">
+                                {t.members.join(", ")}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 italic">Chưa có người trong Top 18</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                      <tr className="total-row">
+                        <td colSpan={2}>Tổng cộng</td>
+                        <td>{total}</td>
+                        <td>
+                          <strong className="vote-value">{totalTop18Count}</strong> / 18 người
+                        </td>
+                        <td>
+                          <strong className="text-emerald-700">
+                            {totalTop18Pct}%
+                          </strong>
+                        </td>
+                        <td>18 người lọt Top</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* 2. BẢNG CHI TIẾT DANH SÁCH 18 CÁN BỘ NHÂN VIÊN LỌT TOP 18 */}
+                <div className="pt-4 border-t border-slate-200">
+                  <div className="mb-3">
+                    <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                      <Award size={16} className="text-emerald-600" />
+                      2. Danh sách cán bộ nhân viên thỏa mãn điều kiện thuộc Top 18 LĐTT có số phiếu bầu lớn nhất
+                    </h4>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Được sắp xếp từ cao xuống thấp theo số phiếu bầu LĐTT, kèm cột tỷ lệ % đại diện của từng Team trong Top 18.
+                    </p>
+                  </div>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>STT</th>
+                        <th>MNV</th>
+                        <th>Họ Và Tên</th>
+                        <th>Team</th>
+                        <th>Số Bình chọn LĐTT</th>
+                        <th>Tỷ lệ chọn</th>
+                        <th>Điểm TB 3 quý</th>
+                        <th>Xếp loại KI dự kiến</th>
+                        <th>Sáng kiến - Ý Tưởng</th>
+                        <th>Khen thưởng ĐV + TĐ</th>
+                        <th>Tỷ lệ % Team trong 18</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {top18Filtered.map((c, i) => {
+                        const hasReward = Boolean(c.reward) && c.reward.trim() !== "" && c.reward.trim() !== "—" && c.reward.trim() !== "Không";
+                        const hasInitiative = Boolean(c.initiative) && c.initiative.trim() !== "" && c.initiative.trim() !== "—" && c.initiative.trim() !== "Không";
+                        const hasMerit = hasReward || hasInitiative;
+                        return (
+                          <tr key={c.id} className={hasMerit ? "has-merit-row" : ""}>
+                            <td>{i + 1}</td>
+                            <td className="mono">{c.id}</td>
+                            <td className="name-cell">
+                              <strong>{c.name}</strong>
+                              {c.lead && <em>Lead</em>}
+                            </td>
+                            <td>
+                              <strong>{c.team}</strong>
+                            </td>
+                            <td>
+                              <strong className="vote-value">{c.votes}</strong>
+                            </td>
+                            <td>{(c.rate * 100).toFixed(1)}%</td>
+                            <td>{c.score.toFixed(3)}</td>
+                            <td>
+                              <span className={`ki ki-${c.ki}`}>{c.ki}</span>
+                            </td>
+                            <td>
+                              {hasInitiative ? (
+                                <span className="merit-tag initiative-tag">
+                                  <Sparkles size={11} className="merit-icon" />
+                                  {c.initiative}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">{c.initiative || "—"}</span>
+                              )}
+                            </td>
+                            <td>
+                              {hasReward ? (
+                                <span className="merit-tag reward-tag">
+                                  <Award size={11} className="merit-icon" />
+                                  {c.reward}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">{c.reward || "—"}</span>
+                              )}
+                            </td>
+                            <td>
+                              <span className="font-semibold text-emerald-700">
+                                {teamStatsMap[c.team]?.percentage || "0.0"}% ({teamStatsMap[c.team]?.count || 0}/18)
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {!top18Filtered.length && (
+                        <tr>
+                          <td colSpan={11} className="text-center py-6 text-slate-500">
+                            Không có dữ liệu phù hợp với tìm kiếm.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             ) : (
               /* BẢNG 3: BÌNH CHỌN CSTĐ 2026 */
               <table>
@@ -512,7 +650,8 @@ export function Admin() {
                     <th>Xếp loại KI dự kiến</th>
                     <th>Sáng kiến - Ý Tưởng</th>
                     <th>Khen thưởng ĐV + TĐ</th>
-                    <th>Bình chọn CSTĐ</th>
+                    <th>Tỷ lệ % Team (Top 18)</th>
+                    <th>Tiêu chuẩn CSTĐ thỏa mãn</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -520,6 +659,14 @@ export function Admin() {
                     const hasReward = Boolean(c.reward) && c.reward.trim() !== "" && c.reward.trim() !== "—" && c.reward.trim() !== "Không";
                     const hasInitiative = Boolean(c.initiative) && c.initiative.trim() !== "" && c.initiative.trim() !== "—" && c.initiative.trim() !== "Không";
                     const hasMerit = hasReward || hasInitiative;
+                    const st = c.cstdState || "Đủ chuẩn sơ bộ";
+                    const badgeClass =
+                      st.includes("Sáng kiến") && st.includes("Top 18")
+                        ? "bg-purple-100 text-purple-800 border-purple-200"
+                        : st.includes("Top 18")
+                        ? "bg-blue-100 text-blue-800 border-blue-200"
+                        : "bg-amber-100 text-amber-800 border-amber-200";
+
                     return (
                       <tr key={c.id} className={hasMerit ? "has-merit-row" : ""}>
                         <td>{i + 1}</td>
@@ -558,8 +705,13 @@ export function Admin() {
                           )}
                         </td>
                         <td>
-                          <span className="inline-block px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800">
-                            {c.cstdState || "Đủ chuẩn sơ bộ"}
+                          <span className="font-semibold text-emerald-700">
+                            {teamStatsMap[c.team]?.percentage || "0.0"}% ({teamStatsMap[c.team]?.count || 0}/18)
+                          </span>
+                        </td>
+                        <td>
+                          <span className={`inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full border ${badgeClass}`}>
+                            {st}
                           </span>
                         </td>
                       </tr>
@@ -567,7 +719,7 @@ export function Admin() {
                   })}
                   {!cstdList.length && (
                     <tr>
-                      <td colSpan={11} className="text-center py-6 text-slate-500">
+                      <td colSpan={12} className="text-center py-6 text-slate-500">
                         Chưa có ứng viên đủ điều kiện CSTĐ theo tiêu chuẩn.
                       </td>
                     </tr>
