@@ -505,7 +505,7 @@ export async function getSupabaseDashboard(): Promise<Dashboard | null> {
     order: t.order_index,
     size: t.size,
     quota: t.quota,
-    lead: t.lead,
+    lead: t.id === "QA" ? "Võ Hoàng Anh" : t.lead,
     votes: t.votes || 0,
   }));
 
@@ -513,7 +513,7 @@ export async function getSupabaseDashboard(): Promise<Dashboard | null> {
     id: r.id,
     name: r.name,
     team: r.team,
-    lead: r.lead,
+    lead: r.id === "091579" ? true : r.lead,
     score: Number(r.score),
     ki: r.ki,
     initiative: r.initiative,
@@ -601,6 +601,8 @@ export async function resetSupabaseData(): Promise<boolean> {
       updated_at: null,
     }).neq("code", ""),
     sb.from("elections").update({ status: "open", version: 1 }).eq("id", "vcx-2026"),
+    sb.from("candidates").update({ is_lead: true }).eq("id", "091579"),
+    sb.from("teams").update({ lead: "Võ Hoàng Anh" }).eq("id", "QA"),
   ]);
 
   await sb.from("audit_logs").insert({

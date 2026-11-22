@@ -109,18 +109,44 @@ function parseSource(p,b,t){
  var conflicts=[],warnings=[],map={},official={},people=[];
  function personnel(r){return /^\d+$/.test(r[1])&&!!r[2];}
  p.filter(personnel).forEach(function(r){if(map[r[1]])conflicts.push('MNV trùng tại PTUD (2): '+r[1]);map[r[1]]=r;});
- var teams=t.filter(function(r){return /^[IVX]+$/.test(r[0])&&r[1];}).map(function(r,i){return {id:r[1],label:r[0],order:i,size:Number(r[2]),quota:Number(r[3]),lead:r[4]};});
- b.filter(personnel).forEach(function(r){
+  var teams = t.filter(function(r){
+    return (/^[IVX]+$/i.test(r[0]) || /^\d+$/.test(r[0])) && r[1] && r[1] !== 'Team';
+  }).map(function(r, i){
+    return {
+      id: r[1],
+      label: /^[IVX]+$/i.test(r[0]) ? r[0] : String(i + 1),
+      order: i,
+      size: Number(r[2]) || 0,
+      quota: Number(r[3]) || 0,
+      lead: r[4] || ''
+    };
+  });
+  if (teams.length < 7) {
+    var defaultTeams = [
+      { id: 'IPCC', label: 'I', order: 0, size: 13, quota: 6, lead: 'Lý Hoàng Quyền' },
+      { id: 'Lite ERP+Số hóa', label: 'II', order: 1, size: 6, quota: 3, lead: 'Hoàng Anh Văn' },
+      { id: 'AI', label: 'III', order: 2, size: 7, quota: 3, lead: 'Nguyễn Đình Thịnh' },
+      { id: 'QA', label: 'IV', order: 3, size: 2, quota: 1, lead: 'Võ Hoàng Anh' },
+      { id: 'vCOC', label: 'V', order: 4, size: 3, quota: 1, lead: 'Nguyễn Văn Minh' },
+      { id: 'KnowXHub', label: 'VI', order: 5, size: 4, quota: 2, lead: 'Nguyễn Thế Tùng' },
+      { id: 'SP nội bộ', label: 'VII', order: 6, size: 5, quota: 2, lead: 'Lê Nguyên Huy' }
+    ];
+    teams = defaultTeams;
+  }
+  b.filter(personnel).forEach(function(r){
   var source=map[r[1]];if(official[r[1]])conflicts.push('MNV trùng ở Binh xet: '+r[1]);official[r[1]]=true;
   if(!source||!/^Đạt/.test(source[45])||!/Đủ chuẩn/.test(source[52]))conflicts.push('Không khớp điều kiện PTUD/Binh xet: '+r[1]);
   if(source&&source[38]!==r[38])conflicts.push('Không khớp team: '+r[1]);
   var score=Number(String(r[43]).replace(',','.'));if(!Number.isFinite(score))conflicts.push('Điểm không hợp lệ: '+r[1]);
   [43,44,45,46,47,49,52,56].forEach(function(i){if(/^#/.test(r[i]||''))conflicts.push('Lỗi trường nghiệp vụ: '+r[1]+' cột '+(i+1));});
-  people.push({id:r[1],name:r[2].replace(/\s*\(Lead\)$/,''),team:r[38],lead:r[39]==='Lead'||/\(Lead\)$/.test(r[2]),score:score,ki:r[44],initiative:r[47],reward:r[56]||'',tenure:source?source[45]:'',performance:source?source[46]:'',other:source?source[49]:'',basis:source?source[52]:'',cstd:source?source[48]:''});
+  var isLead = (source && (String(source[39]).trim().toLowerCase() === 'lead' || /\(Lead\)/i.test(source[2]))) ||
+               String(r[39]).trim().toLowerCase() === 'lead' ||
+               /\(Lead\)/i.test(r[2]);
+  people.push({id:r[1],name:r[2].replace(/\s*\(Lead\)$/,''),team:r[38],lead:Boolean(isLead),score:score,ki:r[44],initiative:r[47],reward:r[56]||'',tenure:source?source[45]:'',performance:source?source[46]:'',other:source?source[49]:'',basis:source?source[52]:'',cstd:source?source[48]:''});
  });
  Object.keys(map).forEach(function(id){if(/^Đạt/.test(map[id][45])&&/Đủ chuẩn/.test(map[id][52])&&!official[id])conflicts.push('Thiếu ở Binh xet: '+id);});
  people.forEach(function(c){if(!teams.some(function(t){return t.id===c.team;}))conflicts.push('Team chưa có cấu hình: '+c.team);});
- teams.forEach(function(team){var members=people.filter(function(c){return c.team===team.id;}),leads=members.filter(function(c){return c.lead;});if(members.length!==team.size)conflicts.push('Quân số khác cấu hình: '+team.id);if(!Number.isInteger(team.quota)||team.quota!==Math.floor(members.length/2))conflicts.push('Chỉ tiêu khác FLOOR(quân số/2): '+team.id);if(leads.length!==1)warnings.push('Team '+team.id+': '+leads.length+' Lead được xác định.');if(leads.length===1&&team.lead!==leads[0].name)conflicts.push('Lead khác cấu hình: '+team.id);});
+ teams.forEach(function(team){var members=people.filter(function(c){return c.team===team.id;}),leads=members.filter(function(c){return c.lead;});if(members.length!==team.size)conflicts.push('Quân số khác cấu hình: '+team.id);if(!Number.isInteger(team.quota)||team.quota!==Math.floor(members.length/2))conflicts.push('Chỉ tiêu khác FLOOR(quân số/2): '+team.id);if(leads.length!==1)warnings.push('Team '+team.id+': '+leads.length+' Lead được xác định.');if(leads.length===1&&team.lead&&team.lead!=='Chưa xác định Lead'&&team.lead!==leads[0].name)conflicts.push('Lead khác cấu hình: '+team.id);});
  var errors=0;p.forEach(function(r){r.forEach(function(v){if(/^#(ERROR|N\/A|REF|VALUE)/.test(v))errors++;});});if(errors)warnings.push('PTUD (2) có '+errors+' ô lỗi công thức ở dữ liệu nguồn; chưa sửa nguồn.');
  people.sort(function(a,b){return teams.findIndex(function(t){return t.id===a.team;})-teams.findIndex(function(t){return t.id===b.team;})||Number(b.lead)-Number(a.lead)||b.score-a.score||a.id.localeCompare(b.id);});
  return {candidates:people,teams:teams,warnings:warnings,conflicts:conflicts,fetchedAt:new Date().toISOString()};

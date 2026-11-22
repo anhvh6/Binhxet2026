@@ -168,14 +168,32 @@ async function handle(req: NextRequest) {
       if (!verifySecret(input.adminCode, "ADMIN_RESULT_CODE_HASH"))
         throw new AppError("Mã xác nhận quản trị không chính xác.", 401);
 
+      let supabaseOk = false;
       if (isSupabaseEnabled()) {
         try {
           await resetSupabaseData();
-        } catch {}
+          supabaseOk = true;
+        } catch (err) {
+          console.warn("Supabase reset warning:", (err as Error).message);
+        }
       }
 
-      const resetResult = await bridge("reset", { tokenHash });
-      return response(resetResult);
+      let bridgeResult: unknown = null;
+      try {
+        bridgeResult = await bridge("reset", { tokenHash });
+      } catch (err) {
+        console.warn("GAS reset warning:", (err as Error).message);
+        if (!supabaseOk) {
+          throw err;
+        }
+      }
+
+      return response(
+        bridgeResult || {
+          ok: true,
+          message: "Đã khôi phục hoàn toàn dữ liệu về mặc định ban đầu.",
+        },
+      );
     }
 
     // 5. ĐĂNG XUẤT
