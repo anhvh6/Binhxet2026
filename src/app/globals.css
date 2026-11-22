@@ -126,6 +126,18 @@ svg {
   border-radius: 12px;
   display: grid;
   place-items: center;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.brand-icon:hover {
+  transform: scale(1.08);
+  box-shadow: 0 4px 14px rgba(220, 38, 38, 0.38);
+}
+.brand-text {
+  color: inherit;
+  display: flex;
+  align-items: center;
+  text-decoration: none;
 }
 .brand-divider {
   padding: 0 14px;
