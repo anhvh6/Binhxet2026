@@ -28,7 +28,7 @@ async function handle(req: NextRequest) {
       read = req.method === "GET";
     if (!read) {
       const origin = req.headers.get("origin");
-      if (!sameOrigin(origin, req.headers.get('host')))
+      if (!sameOrigin(origin, req.headers.get("host")))
         throw new AppError("Nguồn yêu cầu không hợp lệ.", 403);
       if (Number(req.headers.get("content-length") ?? 0) > 30000)
         throw new AppError("Yêu cầu quá lớn.", 413);
@@ -39,6 +39,15 @@ async function handle(req: NextRequest) {
     if (read && path === "challenge") return response({ token: challenge() });
     if (read && ["voting/progress", "election"].includes(path))
       return response(await bridge("progress"));
+    if (!read && path === "auth/review") {
+      const input = z
+        .object({
+          code: z.string().regex(/^\d{4}$/, "Mã bí mật gồm đúng 4 chữ số"),
+        })
+        .parse(p);
+      const resData = await bridge("reviewCode", { code: input.code });
+      return response(resData);
+    }
     if (!read && ["auth/voter", "admin/login"].includes(path)) {
       const input = z
         .object({
@@ -51,7 +60,7 @@ async function handle(req: NextRequest) {
       if (input.website) throw new AppError("Không thể xác thực.", 401);
       verifyProof(input.proof, input.counter);
       if (path === "auth/voter" && !/^\d{4}$/.test(input.code))
-        throw new AppError("Mã cá nhân gồm đúng 4 chữ số.");
+        throw new AppError("Mã bí mật gồm đúng 4 chữ số.");
       const nextToken = token(),
         result = await bridge(path === "auth/voter" ? "login" : "adminLogin", {
           code: path === "auth/voter" ? input.code : undefined,
@@ -71,6 +80,13 @@ async function handle(req: NextRequest) {
         maxAge: path === "admin/login" ? 1800 : 3600,
       });
       return res;
+    }
+    if (!read && path === "admin/reset") {
+      const input = z.object({ adminCode: z.string().min(1) }).parse(p);
+      if (!verifySecret(input.adminCode, "ADMIN_RESULT_CODE_HASH"))
+        throw new AppError("Mã quản trị không chính xác (mã là anhvh6).", 401);
+      const resetResult = await bridge("reset", { tokenHash });
+      return response(resetResult);
     }
     if (!read && ["auth/logout", "admin/logout"].includes(path)) {
       if (session) await bridge("logout", { tokenHash });
@@ -158,7 +174,7 @@ async function handle(req: NextRequest) {
     const e =
       error instanceof AppError
         ? error
-        : new AppError("Không xử lý được yêu cầu. Vui lòng thử lại.", 500);
+        : new AppError((error as Error).message || "Không xử lý được yêu cầu.", 500);
     return NextResponse.json(
       { error: e.message },
       { status: e.status, headers: { "Cache-Control": "no-store" } },

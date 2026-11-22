@@ -1,0 +1,2 @@
+import {it,expect} from 'vitest';import {sameOrigin} from '../src/server/origin';
+it('accepts actual same host including loopback and rejects cross-origin writes',()=>{expect(sameOrigin('https://binhxet2026.vercel.app','binhxet2026.vercel.app')).toBe(true);expect(sameOrigin('http://127.0.0.1:3000','127.0.0.1:3000')).toBe(true);expect(sameOrigin('https://attacker.example','binhxet2026.vercel.app')).toBe(false);expect(sameOrigin(null,'binhxet2026.vercel.app')).toBe(false);expect(sameOrigin('http://binhxet2026.vercel.app','binhxet2026.vercel.app')).toBe(false);});

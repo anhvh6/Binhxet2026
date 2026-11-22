@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Check,
   CheckCheck,
@@ -18,31 +18,51 @@ import { Header } from "./header";
 import { Button } from "./ui/button";
 import { Dialog } from "./ui/dialog";
 import { api } from "@/lib/client";
-import type { Ballot, Me } from "@/lib/types";
+import type { Ballot, Me, ReviewResult } from "@/lib/types";
 import type { Candidate } from "@/lib/domain";
+
 export function BallotScreen() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialMode = searchParams.get("mode");
+  const isSubmittedParam = searchParams.get("submitted") === "1";
+
   const [me, setMe] = useState<Me | null>(null),
     [selected, setSelected] = useState<string[]>([]),
     [stage, setStage] = useState<"vote" | "confirm" | "review" | "success">(
-      "vote",
+      initialMode === "review" ? "review" : "vote",
     ),
     [error, setError] = useState(""),
+    [notice, setNotice] = useState(
+      isSubmittedParam
+        ? "Mã này đã nộp phiếu bình chọn. Bạn có thể xem lại hoặc nhập mã 2405 để sửa phiếu."
+        : "",
+    ),
     [busy, setBusy] = useState(false),
     [query, setQuery] = useState(""),
     [editDialog, setEditDialog] = useState(false),
     [editCode, setEditCode] = useState(""),
+    [nextReviewCode, setNextReviewCode] = useState(""),
     [key, setKey] = useState("");
+
   useEffect(() => {
     api<Me>("ballot/me")
       .then((data) => {
         setMe(data);
         setSelected(data.ballot?.choices ?? []);
-        setStage(data.ballot ? "review" : "vote");
+        if (data.ballot && !data.canEdit && initialMode !== "vote") {
+          setStage("review");
+        } else if (data.ballot && !data.canEdit && initialMode === "vote") {
+          setStage("review");
+          setNotice("Mã này đã nộp phiếu. Nếu muốn sửa lại, vui lòng nhấn 'Sửa' và nhập mã xác nhận 2405.");
+        } else {
+          setStage(initialMode === "review" && data.ballot ? "review" : "vote");
+        }
         setKey(crypto.randomUUID());
       })
-      .catch((e) => setError(e.message));
-  }, []);
+      .catch((e) => setError((e as Error).message));
+  }, [initialMode]);
+
   async function logout() {
     setBusy(true);
     try {
@@ -53,6 +73,7 @@ export function BallotScreen() {
       setBusy(false);
     }
   }
+
   async function unlock() {
     setBusy(true);
     setError("");
@@ -60,6 +81,7 @@ export function BallotScreen() {
       await api("ballot/unlock-edit", { code: editCode });
       setEditDialog(false);
       setStage("vote");
+      setNotice("Đã mở quyền sửa phiếu thành công. Bạn có thể thay đổi các lựa chọn và nộp lại.");
       setKey(crypto.randomUUID());
     } catch (e) {
       setError((e as Error).message);
@@ -67,13 +89,45 @@ export function BallotScreen() {
       setBusy(false);
     }
   }
-  async function proceed() {
+
+  async function lookupNextCode() {
+    if (!/^\d{4}$/.test(nextReviewCode)) {
+      setError("Vui lòng nhập đúng mã bí mật gồm 4 chữ số.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const res = await api<ReviewResult>("auth/review", { code: nextReviewCode });
+      if (res && res.ballot) {
+        setMe({
+          voterId: res.code,
+          code: res.code,
+          ballot: res.ballot,
+          election: res.election,
+          canEdit: false,
+        });
+        setSelected(res.ballot.choices);
+        setStage("review");
+        setNotice(`Đang hiển thị kết quả bình chọn của mã bí mật ${res.code}.`);
+        setNextReviewCode("");
+      }
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function proceedToConfirm() {
+    if (!me) return;
     setBusy(true);
     setError("");
     try {
       await api("ballot/validate", {
         choices: selected,
-        revision: me?.ballot?.revision ?? 0,
+        revision: me.ballot?.revision ?? 0,
         idempotencyKey: key,
       });
       setStage("confirm");
@@ -84,6 +138,7 @@ export function BallotScreen() {
       setBusy(false);
     }
   }
+
   async function submit() {
     if (!me) return;
     setBusy(true);
@@ -103,33 +158,42 @@ export function BallotScreen() {
       setBusy(false);
     }
   }
+
   function toggle(c: Candidate) {
+    if (stage !== "vote") return;
     setError("");
+    setNotice("");
     setKey(crypto.randomUUID());
     setSelected((prev) => {
       if (prev.includes(c.id)) return prev.filter((id) => id !== c.id);
       const team = me!.election.snapshot.teams.find((t) => t.id === c.team)!;
       const count = prev.filter(
         (id) =>
-          me!.election.snapshot.candidates.find((c) => c.id === id)?.team ===
+          me!.election.snapshot.candidates.find((x) => x.id === id)?.team ===
           team.id,
       ).length;
       if (count >= team.quota) return prev;
       return [...prev, c.id];
     });
   }
+
   if (!me)
     return (
       <>
         <Header />
         <main className="page-shell">
           <div className={error ? "error" : "empty"}>
-            {error || "Đang tải phiếu của bạn…"}
+            {error || "Đang tải dữ liệu bình chọn…"}
           </div>
-          <Link href="/">Về trang chủ</Link>
+          <div className="mt-4">
+            <Link href="/" className="back-link">
+              <ChevronLeft size={16} /> Về trang chủ
+            </Link>
+          </div>
         </main>
       </>
     );
+
   const { teams, candidates } = me.election.snapshot,
     total = teams.reduce((n, t) => n + t.quota, 0),
     counts = new Map(
@@ -142,7 +206,9 @@ export function BallotScreen() {
     ),
     done = teams.filter((t) => counts.get(t.id) === t.quota).length,
     readOnly = stage === "review" || stage === "success",
-    onlySelected = stage !== "vote";
+    isConfirm = stage === "confirm",
+    onlySelected = stage !== "vote"; // Ở màn hình confirm và review: LOẠI BỎ CÁC DÒNG KHÔNG ĐƯỢC CHỌN
+
   return (
     <>
       <Header />
@@ -159,71 +225,90 @@ export function BallotScreen() {
             disabled={busy}
           >
             <LogOut size={16} />
-            Đăng xuất
+            Thoát
           </Button>
         </div>
+
         {stage === "success" && (
           <div className="success-panel">
             <span>
               <CheckCheck size={28} />
             </span>
             <div>
-              <h2>Nộp phiếu thành công</h2>
-              <p>Phiếu của bạn đã được ghi nhận trên Google Sheets.</p>
+              <h2>Nộp phiếu thành công!</h2>
+              <p>Phiếu của mã bình chọn <strong>{me.code}</strong> đã được ghi nhận trực tiếp vào Google Sheets.</p>
             </div>
           </div>
         )}
+
         <div className="page-title-row">
           <div>
             <div className="eyebrow">THI ĐUA, KHEN THƯỞNG 2026 · LĐTT</div>
             <h1>
-              {stage === "confirm"
+              {isConfirm
                 ? "Xác nhận trước khi nộp kết quả"
                 : readOnly
-                  ? "Kết quả bình chọn của bạn"
-                  : "Cùng ghi nhận đồng nghiệp"}
+                  ? "Xem lại kết quả bình chọn"
+                  : "Bình chọn Lao động tiên tiến 2026"}
             </h1>
             <p>
               {stage === "vote"
-                ? "Chọn đúng chỉ tiêu của mỗi team. Bạn có thể chọn Lead, đồng nghiệp khác team và chính mình."
-                : stage === "confirm"
-                  ? "Kiểm tra danh sách đã chọn trước khi gửi phiếu chính thức."
-                  : "Danh sách lựa chọn trong phiếu có hiệu lực gần nhất của bạn."}
+                ? "Tích chọn đúng số lượng quy định cho từng team. Bạn có thể chọn Lead, đồng nghiệp khác team và chính mình."
+                : isConfirm
+                  ? "Danh sách các bạn đã được chọn. Vui lòng kiểm tra kỹ trước khi ấn Nộp."
+                  : "Danh sách các bạn đã được chọn bởi mã bình chọn này."}
             </p>
           </div>
           <div className="identity-card">
             <LockKeyhole size={18} />
             <div>
-              <span>Mã bình chọn của bạn</span>
+              <span>Mã bình chọn</span>
               <strong>{me.code}</strong>
             </div>
           </div>
         </div>
-        <div className="ballot-meta">
-          <span>
-            Phiên dữ liệu <b>v{me.election.version}</b>
-          </span>
-          <span>
-            {readOnly
-              ? "Đã nộp"
-              : me.election.status === "closed"
-                ? "Kỳ bình chọn đã đóng"
-                : "Kỳ bình chọn đang mở"}
-          </span>
-          {me.ballot && (
-            <span>
-              Nộp gần nhất:{" "}
-              {new Date(me.ballot.updatedAt).toLocaleString("vi-VN", {
-                timeZone: "Asia/Ho_Chi_Minh",
-              })}
-            </span>
-          )}
-        </div>
+
+        {/* Khung tìm kiếm mã bí mật khác ở chế độ xem lại */}
+        {stage === "review" && (
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 my-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-slate-700">Xem kết quả của mã bí mật tiếp theo:</span>
+            </div>
+            <div className="flex items-center gap-2 flex-grow sm:flex-grow-0">
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]{4}"
+                maxLength={4}
+                placeholder="Nhập mã khác (4 số)"
+                value={nextReviewCode}
+                onChange={(e) => setNextReviewCode(e.target.value.replace(/\D/g, ""))}
+                className="px-3 py-1.5 border border-slate-300 rounded-md text-sm w-44"
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={nextReviewCode.length !== 4 || busy}
+                onClick={() => void lookupNextCode()}
+              >
+                Xem
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {notice && (
+          <div className="notice" role="status">
+            {notice}
+          </div>
+        )}
         {error && (
           <div className="error" role="alert">
             {error}
           </div>
         )}
+
+        {/* Thanh điều hướng team chỉ hiện ở chế độ vote */}
         {stage === "vote" && (
           <>
             <nav className="team-nav" aria-label="Các team">
@@ -251,6 +336,8 @@ export function BallotScreen() {
             </div>
           </>
         )}
+
+        {/* Danh sách ứng viên theo từng team */}
         {teams.map((team) => {
           const people = candidates.filter(
             (c) =>
@@ -262,6 +349,9 @@ export function BallotScreen() {
                   .toLocaleLowerCase("vi")
                   .includes(query.toLocaleLowerCase("vi"))),
           );
+
+          if (onlySelected && people.length === 0) return null;
+
           return (
             <section
               className="team-section"
@@ -276,17 +366,18 @@ export function BallotScreen() {
                     <p>
                       {onlySelected
                         ? `${people.length} người được chọn`
-                        : `Cùng Team, Tích chọn ${team.quota} người · ${team.size} nhân sự`}
+                        : `Team ${team.id} (Cùng Team, Tích chọn ${team.quota} người) · ${team.size} nhân sự`}
                     </p>
                   </div>
                 </div>
                 <span
                   className={`count-pill ${counts.get(team.id) === team.quota ? "complete" : ""}`}
                 >
-                  {counts.get(team.id) === team.quota && <Check size={15} />}Đã
-                  chọn {counts.get(team.id)}/{team.quota}
+                  {counts.get(team.id) === team.quota && <Check size={15} />}
+                  Đã chọn {counts.get(team.id)}/{team.quota}
                 </span>
               </div>
+
               <div className="candidate-table">
                 <div className="candidate-header">
                   <span>STT</span>
@@ -295,10 +386,11 @@ export function BallotScreen() {
                   <span>ĐIỂM TB / KI</span>
                   <span>SÁNG KIẾN - Ý TƯỞNG</span>
                   <span>KHEN THƯỞNG ĐV + TĐ</span>
-                  <span>LĐTT</span>
+                  <span>BÌNH CHỌN LĐTT</span>
                 </div>
                 {people.map((c, i) => {
                   const checked = selected.includes(c.id),
+                    // Quy tắc: khi đã chọn đủ quota của team (ví dụ IPCC chọn đủ 6) thì không được chọn thêm người khác trong team này
                     disabled =
                       onlySelected ||
                       busy ||
@@ -342,17 +434,16 @@ export function BallotScreen() {
                     </label>
                   );
                 })}
-                {!people.length && (
-                  <div className="empty">Không có ứng viên khớp tìm kiếm.</div>
-                )}
               </div>
             </section>
           );
         })}
+
+        {/* Các nút hành động ở màn hình xem lại kết quả */}
         {readOnly && (
           <div className="review-actions">
             <Button
-              variant="outline"
+              variant="default"
               onClick={() => {
                 setError("");
                 setEditCode("");
@@ -363,30 +454,32 @@ export function BallotScreen() {
               <Pencil size={17} />
               Sửa phiếu
             </Button>
-            <Button variant="ghost" onClick={() => void logout()}>
-              Xem phiếu khác
+            <Button variant="outline" onClick={() => router.push("/")}>
+              Về trang chủ
             </Button>
             <span>
-              Để xem phiếu khác, đăng nhập lại bằng mã cá nhân tương ứng.
+              Muốn sửa lại phiếu đã nộp, nhấn nút &quot;Sửa phiếu&quot; và nhập mã xác nhận <strong>2405</strong>.
             </span>
           </div>
         )}
+
         <div className="ballot-disclaimer">
           <ShieldCheck size={18} />
-          Kết quả LĐTT là căn cứ tham khảo, chưa phải quyết định trao danh hiệu
-          cuối cùng.
+          Kết quả bình chọn LĐTT là căn cứ ghi nhận tập thể, mã bình chọn hoàn toàn ẩn danh.
         </div>
       </main>
+
+      {/* Thanh sticky dưới chân màn hình vote và confirm */}
       {!readOnly && (
         <div className="sticky-ballot">
           <div>
             <div>
               <strong>
                 Đã chọn {selected.length}
-                <span>/{total}</span>
+                <span>/{total}</span> người
               </strong>
               <p>
-                {done}/{teams.length} team hoàn thành
+                {done}/{teams.length} team đã đủ chỉ tiêu
               </p>
             </div>
             <div className="sticky-actions">
@@ -395,7 +488,10 @@ export function BallotScreen() {
                   <Button
                     variant="outline"
                     disabled={busy}
-                    onClick={() => setStage("vote")}
+                    onClick={() => {
+                      setStage("vote");
+                      window.scrollTo({ top: 0 });
+                    }}
                   >
                     <Pencil size={16} />
                     Sửa
@@ -409,27 +505,32 @@ export function BallotScreen() {
                     ) : (
                       <Send size={18} />
                     )}
-                    Nộp phiếu
+                    Nộp
                   </Button>
                 </>
               ) : (
                 <>
-                  <span className="desktop-only">
+                  <span className="desktop-only text-xs">
                     {teams
                       .filter((t) => counts.get(t.id) !== t.quota)
                       .map(
                         (t) =>
-                          `${t.id} thiếu ${t.quota - (counts.get(t.id) ?? 0)}`,
+                          `${t.id} ${
+                            (counts.get(t.id) ?? 0) < t.quota
+                              ? `thiếu ${t.quota - (counts.get(t.id) ?? 0)}`
+                              : `thừa ${(counts.get(t.id) ?? 0) - t.quota}`
+                          }`,
                       )
-                      .join(" · ") || "Bạn đã chọn đủ chỉ tiêu."}
+                      .join(" · ") || "Đã chọn đủ 18 người."}
                   </span>
                   <Button
                     disabled={
+                      selected.length !== total ||
                       done !== teams.length ||
                       busy ||
                       me.election.status !== "open"
                     }
-                    onClick={() => void proceed()}
+                    onClick={() => void proceedToConfirm()}
                   >
                     {busy ? "Đang kiểm tra…" : "Tiếp tục"}
                   </Button>
@@ -439,11 +540,13 @@ export function BallotScreen() {
           </div>
         </div>
       )}
+
+      {/* Dialog nhập mã xác nhận 2405 để sửa phiếu */}
       <Dialog
         open={editDialog}
         onOpenChange={setEditDialog}
-        title="Nhập mã xác nhận để chỉnh sửa phiếu"
-        description="Phiếu cũ vẫn có hiệu lực cho đến khi bạn nộp lại thành công."
+        title="Nhập mã xác nhận để sửa phiếu"
+        description="Nhập mã xác nhận '2405' để mở quyền chỉnh sửa lại phiếu bình chọn cho mã này."
       >
         <form
           onSubmit={(e) => {
@@ -451,13 +554,14 @@ export function BallotScreen() {
             void unlock();
           }}
         >
-          <label htmlFor="edit-code">Mã xác nhận sửa</label>
+          <label htmlFor="edit-code">Mã xác nhận sửa phiếu</label>
           <input
             id="edit-code"
             type="password"
             inputMode="numeric"
             pattern="[0-9]{4}"
             maxLength={4}
+            placeholder="Nhập mã (2405)"
             value={editCode}
             onChange={(e) => setEditCode(e.target.value.replace(/\D/g, ""))}
             required
@@ -468,7 +572,7 @@ export function BallotScreen() {
             </div>
           )}
           <Button disabled={busy || editCode.length !== 4} className="full">
-            {busy ? "Đang xác thực…" : "Mở chỉnh sửa"}
+            {busy ? "Đang xác thực…" : "Xác nhận sửa phiếu"}
           </Button>
         </form>
       </Dialog>

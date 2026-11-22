@@ -15,7 +15,7 @@ export async function exportExcel(data: Dashboard) {
       to: { row: Math.max(1, rows.length + 1), column: headers.length },
     };
     sheet.columns = headers.map((h, i) => ({
-      width: i === 2 ? 28 : h === "Chi tiết" ? 42 : 20,
+      width: i === 2 ? 28 : h === "Chi tiết" ? 45 : 20,
     }));
     sheet.eachRow((row, index) => {
       row.font = { name: "Aptos", size: 11 };
@@ -40,7 +40,6 @@ export async function exportExcel(data: Dashboard) {
     sheet.headerFooter.oddHeader = `VCX 2026 | Xuất: ${new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })} | ${data.submitted} phiếu hợp lệ`;
     return sheet;
   }
-  const codes = new Map(data.credentials?.map((c) => [c.voterId, c.code]));
   const ldtt = add(
     "KET QUA LDTT",
     [
@@ -69,7 +68,7 @@ export async function exportExcel(data: Dashboard) {
       c.reward,
       (data.ballots ?? [])
         .filter((b) => b.choices.includes(c.id))
-        .map((b) => codes.get(b.voterId) ?? "")
+        .map((b) => b.voterId)
         .join(", "),
     ]),
   );
@@ -89,7 +88,7 @@ export async function exportExcel(data: Dashboard) {
     ],
   );
   const cstd = add(
-    "CSTĐ 2026",
+    "Bình chọn CSTĐ 2026",
     [
       "STT",
       "MNV",
@@ -127,7 +126,7 @@ export async function exportExcel(data: Dashboard) {
     "NHAT KY BINH CHON",
     [
       "Mã phiếu",
-      "MNV người bình chọn",
+      "Mã bình chọn",
       "Thời gian nộp",
       "Thời gian sửa cuối",
       "Số lần sửa",

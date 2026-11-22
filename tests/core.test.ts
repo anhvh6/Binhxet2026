@@ -19,7 +19,7 @@ describe("Google Sheets voting service", () => {
         newTokenHash: "v",
         ipHash: "a",
       }),
-    ).toMatchObject({ code: "0000", voterId: "000001" });
+    ).toMatchObject({ code: "0000", voterId: "0000" });
   });
   it("rejects nonexistent codes and rate limits persistent buckets", () => {
     const h = harness();
@@ -149,8 +149,8 @@ describe("Google Sheets voting service", () => {
       ipHash: "a",
     });
     expect(
-      h.call("dispatch", "me", { tokenHash: "v", voterId: "000002" }),
-    ).toMatchObject({ voterId: "000001" });
+      h.call("dispatch", "me", { tokenHash: "v", voterId: "0000" }),
+    ).toMatchObject({ voterId: "0000" });
     expect(() => h.call("dispatch", "dashboard", { tokenHash: "v" })).toThrow();
     expect(s.admin).toBeTruthy();
   });
@@ -286,7 +286,7 @@ describe("Google Sheets voting service", () => {
     expect(wb.worksheets.map((s) => s.name)).toEqual([
       "KET QUA LDTT",
       "TONG HOP TEAM",
-      "CSTĐ 2026",
+      "Bình chọn CSTĐ 2026",
       "NHAT KY BINH CHON",
     ]);
     expect(wb.worksheets[0].getCell("B2").value).toBe("000001");

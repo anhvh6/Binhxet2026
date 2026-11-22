@@ -224,30 +224,20 @@ export function seed(h: ReturnType<typeof harness>) {
   h.put("TONG HOP TEAM", teamRows);
   h.put("MA BINH CHON", [
     [
-      "Kỳ",
-      "MNV",
-      "Tên",
-      "Team",
-      "Mã",
-      "ID",
+      "STT",
+      "Mã bình chọn",
       "Trạng thái",
-      "Nộp",
-      "Sửa",
-      "Revision",
+      "Ngày nộp",
+      "Ngày sửa",
     ],
     ...ballot
       .slice(6)
       .map((r, i) => [
-        "vcx-2026",
-        r[1],
-        r[2],
-        r[38],
+        i + 1,
         String(i).padStart(4, "0"),
-        `credential-${i}`,
         "Chưa sử dụng",
         "",
         "",
-        0,
       ]),
   ]);
   const admin = "admin-token";

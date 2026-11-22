@@ -9,7 +9,7 @@ export type Election = {
 };
 export type Ballot = {
   id: string;
-  voterId: string;
+  voterId: string; // Mã bình chọn 4 số bí mật
   choices: string[];
   revision: number;
   version: number;
@@ -36,7 +36,7 @@ export type Dashboard = {
   cstd: { id: string; status: string }[];
   audit: string[][];
   ballots?: Ballot[];
-  credentials?: { voterId: string; code: string }[];
+  credentials?: { code: string; status?: string }[];
 };
 export type Progress = {
   ready: boolean;
@@ -44,4 +44,9 @@ export type Progress = {
   total: number;
   submitted: number;
   quota: number;
+};
+export type ReviewResult = {
+  code: string;
+  ballot: Ballot;
+  election: Election;
 };
