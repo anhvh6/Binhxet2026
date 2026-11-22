@@ -286,12 +286,12 @@ export function Home() {
         <span>Thi đua, khen thưởng năm 2026</span>
       </footer>
 
-      {/* Dialog Tổng hợp kết quả (Mã quản trị: anhvh6) */}
+      {/* Dialog Tổng hợp kết quả */}
       <Dialog
         open={admin}
         onOpenChange={setAdmin}
         title="Tổng hợp kết quả"
-        description="Nhập mã 'anhvh6' để xem bảng kết quả thi đua khen thưởng."
+        description="Dành cho quản trị viên được phân quyền tổng hợp kết quả."
       >
         <form
           onSubmit={(e) => {
@@ -304,7 +304,7 @@ export function Home() {
             id="admin-code"
             type="password"
             autoComplete="off"
-            placeholder="Nhập mã (anhvh6)"
+            placeholder="Nhập mã quản trị"
             value={adminCode}
             onChange={(e) => setAdminCode(e.target.value)}
             required
@@ -375,7 +375,7 @@ export function Home() {
             id="reset-admin-code"
             type="password"
             autoComplete="off"
-            placeholder="Nhập mã quản trị (anhvh6)"
+            placeholder="Nhập mã xác nhận quản trị"
             value={resetAdminCode}
             onChange={(e) => setResetAdminCode(e.target.value)}
             required

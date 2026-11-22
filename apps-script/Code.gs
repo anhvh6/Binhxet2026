@@ -257,8 +257,8 @@ function dispatch(action,p){
   var sessions=table('sessions');sessions.rows.forEach(function(r,i){if(r[2]===s[2]&&r[4]){r[4]='';requests.push(writeRow(sessions.sheet,i,r));}});
   commit(requests.concat(mirrors(e,all)));return b;
  }
- session(p.tokenHash,'admin');
  if(action==='reset')return resetSystem(true);
+ session(p.tokenHash,'admin');
  if(action==='source')return readSource();
  if(action==='freeze'){
   var old=election();if(old)fail('Đã có snapshot. Không thay đổi danh sách giữa kỳ; hãy tạo kỳ mới.',409);

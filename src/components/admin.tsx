@@ -487,7 +487,7 @@ export function Admin() {
             id="admin-reset-pwd"
             type="password"
             autoComplete="off"
-            placeholder="Nhập mã (anhvh6)"
+            placeholder="Nhập mã xác nhận quản trị"
             value={resetAdminCode}
             onChange={(e) => setResetAdminCode(e.target.value)}
             required
