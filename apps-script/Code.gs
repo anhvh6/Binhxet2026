@@ -14,7 +14,22 @@ var TABS = {
  limits:['GIOI HAN TRUY CAP',['Khóa','Số lần','Hết hạn']]
 };
 function props(){return PropertiesService.getScriptProperties();}
-function book(){var id=props().getProperty('SPREADSHEET_ID');if(!id)fail('Chưa cấu hình SPREADSHEET_ID.',503);return SpreadsheetApp.openById(id);}
+function book(){
+  var active = null;
+  try { active = SpreadsheetApp.getActiveSpreadsheet(); } catch(_) {}
+  if (active) {
+    try {
+      var p = props();
+      if (!p.getProperty('SPREADSHEET_ID')) {
+        p.setProperty('SPREADSHEET_ID', active.getId());
+      }
+    } catch (_) {}
+    return active;
+  }
+  var id = props().getProperty('SPREADSHEET_ID');
+  if (id) return SpreadsheetApp.openById(id);
+  fail('Chưa cấu hình SPREADSHEET_ID. Vui lòng mở trực tiếp trên Google Sheet hoặc cấu hình SPREADSHEET_ID.', 503);
+}
 function fail(message,status){var e=new Error(message);e.status=status||400;throw e;}
 function sha(value){return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,String(value),Utilities.Charset.UTF_8).map(function(b){return ('0'+(b&255).toString(16)).slice(-2);}).join('');}
 function hmac(value){var s=props().getProperty('BRIDGE_SECRET');if(!s||s.length<32)fail('Chưa cấu hình BRIDGE_SECRET.',503);return Utilities.computeHmacSha256Signature(value,s).map(function(b){return ('0'+(b&255).toString(16)).slice(-2);}).join('');}
@@ -738,11 +753,11 @@ function syncAllFromSupabase() {
  */
 function syncCurrentSheetFromSupabase() {
   var ui = SpreadsheetApp.getUi();
-  var activeSheet = SpreadsheetApp.getActiveSheet();
-  var name = activeSheet.getName().toUpperCase();
+  var activeSheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var name = activeSheet.getName().trim().toUpperCase();
 
   try {
-    if (name.indexOf('LDTT') >= 0 || name.indexOf('KẾT QUẢ') >= 0) {
+    if (name.indexOf('LDTT') >= 0 || name.indexOf('LĐTT') >= 0 || name.indexOf('KẾT QUẢ') >= 0) {
       syncLdttSheet();
       ui.alert('✅ Đã cập nhật xong sheet KET QUA LDTT từ Supabase!');
     } else if (name.indexOf('TEAM') >= 0) {
@@ -754,7 +769,7 @@ function syncCurrentSheetFromSupabase() {
     } else if (name.indexOf('PHIEU') >= 0 || name.indexOf('PHIẾU') >= 0) {
       syncBallotsSheet();
       ui.alert('✅ Đã cập nhật xong sheet PHIEU BINH CHON từ Supabase!');
-    } else if (name.indexOf('MA') >= 0 || name.indexOf('MÃ') >= 0) {
+    } else if (name.indexOf('MA BINH CHON') >= 0 || name.indexOf('MÃ BÌNH CHỌN') >= 0 || name.indexOf('CREDENTIAL') >= 0) {
       syncCredentialsSheet();
       ui.alert('✅ Đã cập nhật xong sheet MA BINH CHON từ Supabase!');
     } else if (name.indexOf('CHI TIET') >= 0 || name.indexOf('CHI TIẾT') >= 0) {
@@ -781,7 +796,7 @@ function pushAllToSupabase() {
   var ui = SpreadsheetApp.getUi();
   var res = ui.alert(
     'Xác nhận đẩy dữ liệu lên Supabase',
-    'Hành động này sẽ đọc danh sách nhân sự từ sheet PTUD (2) / Binh xet và cấu hình Team để cập nhật vào cơ sở dữ liệu Supabase.\n\nBạn có chắc chắn muốn thực hiện?',
+    'Hành động này sẽ đọc danh sách nhân sự từ sheet PTUD (2) / Binh xet, cấu hình Team và Mã bình chọn để cập nhật vào cơ sở dữ liệu Supabase.\n\nBạn có chắc chắn muốn thực hiện?',
     ui.ButtonSet.YES_NO
   );
   if (res !== ui.Button.YES) return;
@@ -793,7 +808,7 @@ function pushAllToSupabase() {
       return;
     }
 
-    // 1. Đẩy Teams
+    // 1. Đẩy Teams trước
     var teamsPayload = source.teams.map(function(t) {
       return {
         id: t.id,
@@ -836,17 +851,29 @@ function pushAllToSupabase() {
     // 3. Đẩy Mã bí mật (nếu tab MA BINH CHON đã có)
     var cs = credentials();
     if (cs && cs.rows && cs.rows.length > 0) {
+      var validStatuses = ['Chưa sử dụng', 'Đang thao tác', 'Đã nộp phiếu', 'Được phép sửa', 'Bị khóa', 'Đã thu hồi'];
       var credsPayload = cs.rows.map(function(r) {
+        var codeMatch = String(r[1]).match(/\d{4}/);
+        if (!codeMatch) return null;
+        var rawStatus = (r[2] || '').trim();
+        var status = validStatuses.indexOf(rawStatus) >= 0 ? rawStatus : 'Chưa sử dụng';
+        var submittedAt = (r[3] && !isNaN(Date.parse(r[3]))) ? new Date(r[3]).toISOString() : null;
+        var updatedAt = (r[4] && !isNaN(Date.parse(r[4]))) ? new Date(r[4]).toISOString() : null;
         return {
-          code: String(r[1]).padStart(4, '0'),
-          status: r[2] || 'Chưa sử dụng'
+          code: codeMatch[0],
+          status: status,
+          submitted_at: submittedAt,
+          updated_at: updatedAt
         };
-      });
-      callSupabaseApi('voter_credentials', {
-        method: 'post',
-        prefer: 'resolution=merge-duplicates',
-        payload: credsPayload
-      });
+      }).filter(Boolean);
+
+      if (credsPayload.length > 0) {
+        callSupabaseApi('voter_credentials', {
+          method: 'post',
+          prefer: 'resolution=merge-duplicates',
+          payload: credsPayload
+        });
+      }
     }
 
     // 4. Cập nhật Election
@@ -880,12 +907,30 @@ function pushAllToSupabase() {
  */
 function pushCurrentSheetToSupabase() {
   var ui = SpreadsheetApp.getUi();
-  var activeSheet = SpreadsheetApp.getActiveSheet();
-  var name = activeSheet.getName();
+  var activeSheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var name = activeSheet.getName().trim();
+  var upperName = name.toUpperCase();
 
   try {
-    if (name === 'PTUD (2)' || name === 'Binh xet') {
+    if (upperName.indexOf('PTUD') >= 0 || upperName.indexOf('BINH XET') >= 0 || upperName.indexOf('BÌNH XÉT') >= 0) {
       var source = readSource();
+      // Đẩy Teams trước để tránh lỗi Foreign Key
+      var teamsPayload = source.teams.map(function(t) {
+        return {
+          id: t.id,
+          label: t.label,
+          order_index: t.order,
+          size: t.size,
+          quota: t.quota,
+          lead: t.lead
+        };
+      });
+      callSupabaseApi('teams', {
+        method: 'post',
+        prefer: 'resolution=merge-duplicates',
+        payload: teamsPayload
+      });
+
       var candidatesPayload = source.candidates.map(function(c) {
         return {
           id: c.id,
@@ -907,8 +952,8 @@ function pushCurrentSheetToSupabase() {
         prefer: 'resolution=merge-duplicates',
         payload: candidatesPayload
       });
-      ui.alert('✅ Đã cập nhật ' + candidatesPayload.length + ' ứng viên lên Supabase!');
-    } else if (name === 'TONG HOP TEAM') {
+      ui.alert('✅ Đã cập nhật thành công ' + candidatesPayload.length + ' ứng viên lên Supabase!');
+    } else if (upperName.indexOf('TEAM') >= 0) {
       var source = readSource();
       var teamsPayload = source.teams.map(function(t) {
         return {
@@ -925,21 +970,36 @@ function pushCurrentSheetToSupabase() {
         prefer: 'resolution=merge-duplicates',
         payload: teamsPayload
       });
-      ui.alert('✅ Đã cập nhật ' + teamsPayload.length + ' team lên Supabase!');
-    } else if (name === 'MA BINH CHON') {
+      ui.alert('✅ Đã cập nhật thành công ' + teamsPayload.length + ' team lên Supabase!');
+    } else if (upperName.indexOf('MA') >= 0 || upperName.indexOf('MÃ') >= 0 || upperName.indexOf('CREDENTIAL') >= 0) {
       var cs = credentials();
+      var validStatuses = ['Chưa sử dụng', 'Đang thao tác', 'Đã nộp phiếu', 'Được phép sửa', 'Bị khóa', 'Đã thu hồi'];
       var credsPayload = cs.rows.map(function(r) {
+        var codeMatch = String(r[1]).match(/\d{4}/);
+        if (!codeMatch) return null;
+        var rawStatus = (r[2] || '').trim();
+        var status = validStatuses.indexOf(rawStatus) >= 0 ? rawStatus : 'Chưa sử dụng';
+        var submittedAt = (r[3] && !isNaN(Date.parse(r[3]))) ? new Date(r[3]).toISOString() : null;
+        var updatedAt = (r[4] && !isNaN(Date.parse(r[4]))) ? new Date(r[4]).toISOString() : null;
         return {
-          code: String(r[1]).padStart(4, '0'),
-          status: r[2] || 'Chưa sử dụng'
+          code: codeMatch[0],
+          status: status,
+          submitted_at: submittedAt,
+          updated_at: updatedAt
         };
-      });
+      }).filter(Boolean);
+
+      if (credsPayload.length === 0) {
+        ui.alert('⚠️ Cảnh báo', 'Không tìm thấy mã bình chọn 4 chữ số hợp lệ nào trong sheet ' + name + '.', ui.ButtonSet.OK);
+        return;
+      }
+
       callSupabaseApi('voter_credentials', {
         method: 'post',
         prefer: 'resolution=merge-duplicates',
         payload: credsPayload
       });
-      ui.alert('✅ Đã cập nhật ' + credsPayload.length + ' mã bí mật lên Supabase!');
+      ui.alert('✅ Đã cập nhật thành công ' + credsPayload.length + ' mã bí mật lên Supabase!');
     } else {
       ui.alert(
         'Thông báo',

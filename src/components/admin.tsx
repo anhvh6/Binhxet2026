@@ -14,6 +14,8 @@ import {
   CheckCheck,
   LockKeyhole,
   RotateCcw,
+  Award,
+  Sparkles,
 } from "lucide-react";
 import { Header } from "./header";
 import { Button } from "./ui/button";
@@ -320,27 +322,50 @@ export function Admin() {
                   </tr>
                 </thead>
                 <tbody>
-                  {results.map((c, i) => (
-                    <tr key={c.id}>
-                      <td>{i + 1}</td>
-                      <td className="mono">{c.id}</td>
-                      <td className="name-cell">
-                        <strong>{c.name}</strong>
-                        {c.lead && <em>Lead</em>}
-                      </td>
-                      <td>{c.team}</td>
-                      <td>
-                        <strong className="vote-value">{c.votes}</strong>
-                      </td>
-                      <td>{(c.rate * 100).toFixed(1)}%</td>
-                      <td>{c.score.toFixed(3)}</td>
-                      <td>
-                        <span className={`ki ki-${c.ki}`}>{c.ki}</span>
-                      </td>
-                      <td>{c.initiative || "—"}</td>
-                      <td>{c.reward || "—"}</td>
-                    </tr>
-                  ))}
+                  {results.map((c, i) => {
+                    const hasReward = Boolean(c.reward) && c.reward.trim() !== "" && c.reward.trim() !== "—" && c.reward.trim() !== "Không";
+                    const hasInitiative = Boolean(c.initiative) && c.initiative.trim() !== "" && c.initiative.trim() !== "—" && c.initiative.trim() !== "Không";
+                    const hasMerit = hasReward || hasInitiative;
+                    return (
+                      <tr key={c.id} className={hasMerit ? "has-merit-row" : ""}>
+                        <td>{i + 1}</td>
+                        <td className="mono">{c.id}</td>
+                        <td className="name-cell">
+                          <strong>{c.name}</strong>
+                          {c.lead && <em>Lead</em>}
+                        </td>
+                        <td>{c.team}</td>
+                        <td>
+                          <strong className="vote-value">{c.votes}</strong>
+                        </td>
+                        <td>{(c.rate * 100).toFixed(1)}%</td>
+                        <td>{c.score.toFixed(3)}</td>
+                        <td>
+                          <span className={`ki ki-${c.ki}`}>{c.ki}</span>
+                        </td>
+                        <td>
+                          {hasInitiative ? (
+                            <span className="merit-tag initiative-tag">
+                              <Sparkles size={11} className="merit-icon" />
+                              {c.initiative}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">{c.initiative || "—"}</span>
+                          )}
+                        </td>
+                        <td>
+                          {hasReward ? (
+                            <span className="merit-tag reward-tag">
+                              <Award size={11} className="merit-icon" />
+                              {c.reward}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">{c.reward || "—"}</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {!results.length && (
                     <tr>
                       <td colSpan={10} className="text-center py-6 text-slate-500">
@@ -402,32 +427,55 @@ export function Admin() {
                   </tr>
                 </thead>
                 <tbody>
-                  {cstdList.map((c, i) => (
-                    <tr key={c.id}>
-                      <td>{i + 1}</td>
-                      <td className="mono">{c.id}</td>
-                      <td className="name-cell">
-                        <strong>{c.name}</strong>
-                        {c.lead && <em>Lead</em>}
-                      </td>
-                      <td>{c.team}</td>
-                      <td>
-                        <strong className="vote-value">{c.votes}</strong>
-                      </td>
-                      <td>{(c.rate * 100).toFixed(1)}%</td>
-                      <td>{c.score.toFixed(3)}</td>
-                      <td>
-                        <span className={`ki ki-${c.ki}`}>{c.ki}</span>
-                      </td>
-                      <td>{c.initiative || "—"}</td>
-                      <td>{c.reward || "—"}</td>
-                      <td>
-                        <span className="inline-block px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800">
-                          {c.cstdState || "Đủ chuẩn sơ bộ"}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                  {cstdList.map((c, i) => {
+                    const hasReward = Boolean(c.reward) && c.reward.trim() !== "" && c.reward.trim() !== "—" && c.reward.trim() !== "Không";
+                    const hasInitiative = Boolean(c.initiative) && c.initiative.trim() !== "" && c.initiative.trim() !== "—" && c.initiative.trim() !== "Không";
+                    const hasMerit = hasReward || hasInitiative;
+                    return (
+                      <tr key={c.id} className={hasMerit ? "has-merit-row" : ""}>
+                        <td>{i + 1}</td>
+                        <td className="mono">{c.id}</td>
+                        <td className="name-cell">
+                          <strong>{c.name}</strong>
+                          {c.lead && <em>Lead</em>}
+                        </td>
+                        <td>{c.team}</td>
+                        <td>
+                          <strong className="vote-value">{c.votes}</strong>
+                        </td>
+                        <td>{(c.rate * 100).toFixed(1)}%</td>
+                        <td>{c.score.toFixed(3)}</td>
+                        <td>
+                          <span className={`ki ki-${c.ki}`}>{c.ki}</span>
+                        </td>
+                        <td>
+                          {hasInitiative ? (
+                            <span className="merit-tag initiative-tag">
+                              <Sparkles size={11} className="merit-icon" />
+                              {c.initiative}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">{c.initiative || "—"}</span>
+                          )}
+                        </td>
+                        <td>
+                          {hasReward ? (
+                            <span className="merit-tag reward-tag">
+                              <Award size={11} className="merit-icon" />
+                              {c.reward}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">{c.reward || "—"}</span>
+                          )}
+                        </td>
+                        <td>
+                          <span className="inline-block px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800">
+                            {c.cstdState || "Đủ chuẩn sơ bộ"}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {!cstdList.length && (
                     <tr>
                       <td colSpan={11} className="text-center py-6 text-slate-500">

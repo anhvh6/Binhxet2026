@@ -13,6 +13,8 @@ import {
   Pencil,
   Send,
   ShieldCheck,
+  Award,
+  Sparkles,
 } from "lucide-react";
 import { Header } from "./header";
 import { Button } from "./ui/button";
@@ -396,9 +398,24 @@ export function BallotScreen() {
                       busy ||
                       me.election.status !== "open" ||
                       (!checked && counts.get(team.id) === team.quota);
+
+                  const hasReward =
+                    Boolean(c.reward) &&
+                    c.reward.trim() !== "" &&
+                    c.reward.trim() !== "—" &&
+                    c.reward.trim() !== "Không";
+
+                  const hasInitiative =
+                    Boolean(c.initiative) &&
+                    c.initiative.trim() !== "" &&
+                    c.initiative.trim() !== "—" &&
+                    c.initiative.trim() !== "Không";
+
+                  const hasMerit = hasReward || hasInitiative;
+
                   return (
                     <label
-                      className={`candidate-row ${checked ? "selected" : ""} ${disabled && !checked ? "disabled" : ""}`}
+                      className={`candidate-row ${checked ? "selected" : ""} ${disabled && !checked ? "disabled" : ""} ${hasMerit ? "has-merit" : ""} ${hasReward ? "has-reward" : ""} ${hasInitiative ? "has-initiative" : ""}`}
                       key={c.id}
                     >
                       <span className="candidate-index">{i + 1}</span>
@@ -414,13 +431,27 @@ export function BallotScreen() {
                         <b>{c.score.toFixed(3)}</b>
                         <span className={`ki ki-${c.ki}`}>{c.ki}</span>
                       </span>
-                      <span className="candidate-detail">
+                      <span className="candidate-detail candidate-initiative">
                         <small>Sáng kiến</small>
-                        {c.initiative || "—"}
+                        {hasInitiative ? (
+                          <span className="merit-tag initiative-tag">
+                            <Sparkles size={12} className="merit-icon" />
+                            {c.initiative}
+                          </span>
+                        ) : (
+                          c.initiative || "—"
+                        )}
                       </span>
-                      <span className="candidate-detail">
+                      <span className="candidate-detail candidate-reward">
                         <small>Khen thưởng</small>
-                        {c.reward || "—"}
+                        {hasReward ? (
+                          <span className="merit-tag reward-tag">
+                            <Award size={12} className="merit-icon" />
+                            {c.reward}
+                          </span>
+                        ) : (
+                          c.reward || "—"
+                        )}
                       </span>
                       <span className="candidate-check">
                         <input

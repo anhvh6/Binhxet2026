@@ -677,56 +677,78 @@ form > label {
 .team-section {
   scroll-margin-top: 20px;
   background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
   overflow: hidden;
-  margin-bottom: 24px;
+  margin-bottom: 28px;
+  box-shadow: 0 4px 16px -2px rgba(15, 23, 42, 0.06), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.team-section:hover {
+  border-color: #94a3b8;
+  box-shadow: 0 8px 24px -4px rgba(15, 23, 42, 0.09);
 }
 .team-heading {
   display: flex;
   justify-content: space-between;
-  gap: 15px;
+  gap: 16px;
   align-items: center;
-  padding: 21px 24px;
+  padding: 18px 24px;
+  background: linear-gradient(135deg, #f8fafc 0%, #edf2f7 100%);
+  border-left: 5px solid #2563eb;
+  border-bottom: 1px solid #e2e8f0;
 }
 .team-heading > div {
   display: flex;
-  gap: 15px;
+  gap: 16px;
   align-items: center;
 }
 .team-number {
-  width: 36px;
-  height: 36px;
+  width: 42px;
+  height: 42px;
   display: grid;
   place-items: center;
-  border-radius: 8px;
-  background: #edf2f8;
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: #708199;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #ffffff;
+  box-shadow: 0 3px 8px rgba(37, 99, 235, 0.28);
+  flex-shrink: 0;
 }
 .team-heading h2 {
-  font-size: 1.08rem;
+  font-size: 1.28rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.3px;
+  margin: 0;
 }
 .team-heading p {
-  font-size: 0.77rem;
-  margin-top: 5px;
-  color: var(--muted);
+  font-size: 0.84rem;
+  margin-top: 4px;
+  color: #475569;
+  font-weight: 500;
 }
 .count-pill {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   flex-shrink: 0;
-  font-size: 0.75rem;
-  background: #f1f4f8;
-  color: #728299;
-  border-radius: 6px;
-  padding: 7px 9px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: #ffffff;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 14px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s;
 }
 .count-pill.complete {
-  background: #eaf8f1;
-  color: var(--green);
+  background: #ecfdf5;
+  color: #059669;
+  border-color: #6ee7b7;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.15);
 }
 .candidate-header,
 .candidate-row {
@@ -764,6 +786,57 @@ form > label {
 .candidate-row.disabled {
   opacity: 0.55;
   cursor: default;
+}
+/* Hàng cá nhân có Khen thưởng hoặc Sáng kiến - nổi bật tinh tế */
+.candidate-row.has-merit {
+  background: #f8fbff;
+  border-left: 3px solid #3b82f6;
+}
+.candidate-row.has-merit:hover {
+  background: #eff6ff;
+}
+.candidate-row.has-merit.selected {
+  background: #fff5f6;
+  border-left: 3px solid var(--accent);
+}
+.candidate-row.has-merit .candidate-index {
+  color: #2563eb;
+  font-weight: 700;
+}
+.candidate-row.has-merit .candidate-name strong {
+  color: #0f172a;
+}
+/* Badge hiển thị Sáng kiến & Khen thưởng */
+.merit-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  line-height: 1.35;
+  word-break: break-word;
+}
+.merit-tag .merit-icon {
+  flex-shrink: 0;
+}
+.initiative-tag {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+.reward-tag {
+  background: #fffbeb;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+/* Dòng có merit trong bảng admin */
+tr.has-merit-row {
+  background: #f8fbff;
+}
+tr.has-merit-row:hover {
+  background: #eff6ff;
 }
 .candidate-index {
   font-size: 0.75rem;
@@ -1324,32 +1397,33 @@ td.name-cell {
     padding: 9px 11px;
   }
   .team-heading {
-    padding: 17px 14px;
-    gap: 8px;
+    padding: 14px 14px;
+    gap: 10px;
   }
   .team-heading > div {
-    gap: 9px;
+    gap: 10px;
   }
   .team-number {
-    width: 28px;
-    height: 30px;
-    font-size: 0.68rem;
+    width: 34px;
+    height: 34px;
+    font-size: 0.8rem;
+    border-radius: 8px;
   }
   .team-heading h2 {
-    font-size: 0.94rem;
+    font-size: 1.05rem;
   }
   .team-heading p {
-    font-size: 0.65rem;
-    max-width: 180px;
-    line-height: 1.6;
+    font-size: 0.72rem;
+    max-width: 200px;
+    line-height: 1.5;
   }
   .count-pill {
-    font-size: 0.63rem;
-    padding: 6px;
-    gap: 3px;
+    font-size: 0.72rem;
+    padding: 6px 10px;
+    gap: 4px;
   }
   .count-pill svg {
-    width: 12px;
+    width: 14px;
   }
   .candidate-header {
     display: none;
