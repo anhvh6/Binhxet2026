@@ -31,9 +31,9 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 const cookieName = "vcx_session";
 
-function response(data: unknown) {
+function response(data: unknown, cacheControl = "private, no-store") {
   return NextResponse.json(data, {
-    headers: { "Cache-Control": "private, no-store" },
+    headers: { "Cache-Control": cacheControl },
   });
 }
 
@@ -61,12 +61,19 @@ async function handle(req: NextRequest) {
       if (isSupabaseEnabled()) {
         try {
           const sbProgress = await getSupabaseProgress();
-          if (sbProgress) return response(sbProgress);
+          if (sbProgress)
+            return response(
+              sbProgress,
+              "public, s-maxage=3, stale-while-revalidate=10",
+            );
         } catch {
           // fallback to bridge if error
         }
       }
-      return response(await bridge("progress"));
+      return response(
+        await bridge("progress"),
+        "public, s-maxage=3, stale-while-revalidate=10",
+      );
     }
 
     // 2. XEM LẠI PHIẾU
@@ -308,10 +315,17 @@ async function handle(req: NextRequest) {
       if (path === "admin/dashboard" && isSupabaseEnabled()) {
         try {
           const sbDashboard = await getSupabaseDashboard();
-          if (sbDashboard) return response(sbDashboard);
+          if (sbDashboard)
+            return response(
+              sbDashboard,
+              "private, s-maxage=5, stale-while-revalidate=15",
+            );
         } catch {}
       }
-      return response(await bridge(adminReads[path], { tokenHash }));
+      return response(
+        await bridge(adminReads[path], { tokenHash }),
+        "private, s-maxage=5, stale-while-revalidate=15",
+      );
     }
 
     // 10. XUẤT EXCEL

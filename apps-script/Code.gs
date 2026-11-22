@@ -534,61 +534,73 @@ function syncLdttSheet() {
 
 /**
  * 2. ĐỒNG BỘ: TỔNG HỢP TEAM (view_results_team)
+ * Số người được chọn là tổng hợp số người trong team đó nằm trong Top 18 người có số phiếu bầu lớn nhất từ trên xuống
+ * và kèm cột tỷ lệ % trên 18.
  */
 function syncTeamSheet() {
-  var teamsData = callSupabaseApi('view_results_team?select=*&order=order_index.asc');
-  if (!teamsData) return;
+  var ldttData = callSupabaseApi('view_results_ldtt?select=*&order=votes.desc,score.desc,id.asc') || [];
+  var teamsData = callSupabaseApi('teams?select=*&order=order_index.asc') || [];
+  if (!teamsData.length) return;
 
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var existingSheet = ss.getSheetByName('TONG HOP TEAM');
+  var top18 = ldttData.slice(0, 18);
+  var totalNv = 0;
+  var totalTop18 = top18.length;
 
-  // Nếu đã có sheet TONG HOP TEAM theo form chuẩn, ta cập nhật cột SỐ CHỌN LĐTT
-  if (existingSheet && existingSheet.getLastRow() >= 8) {
-    var teamColValues = existingSheet.getRange(2, 2, 7, 1).getDisplayValues(); // Cột Team
-    for (var i = 0; i < teamColValues.length; i++) {
-      var teamName = teamColValues[i][0];
-      var matched = teamsData.find(function(t) { return t.id === teamName; });
-      if (matched) {
-        existingSheet.getRange(i + 2, 6).setValue(Number(matched.votes) || 0); // Cột F: SỐ CHỌN LĐTT
-      }
-    }
-  }
-
-  // Đồng thời cập nhật hoặc tạo tab tổng hợp rõ ràng KET QUA TEAM
-  var headers = ['STT', 'Nhóm', 'Team', 'Tổng số NV', 'Chỉ tiêu chọn', 'Lead', 'Số người được chọn'];
-  var totalNv = 0, totalVotes = 0;
+  var headers = ['STT', 'Team', 'Tổng số NV', 'Số người được chọn', 'Tỷ lệ %'];
   var rows = teamsData.map(function(t, i) {
-    totalNv += Number(t.size) || 0;
-    totalVotes += Number(t.votes) || 0;
+    var size = Number(t.size) || 0;
+    totalNv += size;
+    var top18InTeam = top18.filter(function(c) { return c.team === t.id; }).length;
+    var pct = top18InTeam / 18;
     return [
       i + 1,
-      t.label || '',
       t.id,
-      Number(t.size) || 0,
-      Number(t.quota) || 0,
-      t.lead || '',
-      Number(t.votes) || 0
+      size,
+      top18InTeam,
+      pct
     ];
   });
-  rows.push(['Tổng', '', '', totalNv, Math.floor(totalNv / 2), '', totalVotes]);
+  rows.push(['Tổng cộng', '', totalNv, totalTop18, totalTop18 / 18]);
 
-  writeToSheet('KET QUA TEAM', headers, rows);
+  var sheet = writeToSheet('TONG HOP TEAM', headers, rows);
+  if (rows.length > 0) {
+    sheet.getRange(2, 5, rows.length, 1).setNumberFormat('0.0%');
+  }
   return rows.length;
 }
 
 /**
  * 3. ĐỒNG BỘ: BÌNH CHỌN CSTĐ 2026
+ * Lọc ra các nhân viên đảm bảo đủ các tiêu chí:
+ * 1) Kết quả xếp loại KI năm 2026: Đạt loại A trở lên
+ * 2) Đạt 1 trong các tiêu chuẩn thành tích:
+ *    • Là 1 trong 18 người có số phiếu bầu nhiều nhất từ trên xuống (đạt danh hiệu LĐTT)
+ *    • Có SÁNG KIẾN - Ý TƯỞNG
  */
 function syncCstdSheet() {
-  var ldttData = callSupabaseApi('view_results_ldtt?select=*&order=votes.desc,score.desc,id.asc');
+  var ldttData = callSupabaseApi('view_results_ldtt?select=*&order=votes.desc,score.desc,id.asc') || [];
   var cstdStatusData = callSupabaseApi('cstd_status?select=*') || [];
-  if (!ldttData) return;
+  if (!ldttData.length) return;
+
+  var top18 = ldttData.slice(0, 18);
+  var top18Map = {};
+  top18.forEach(function(c) { top18Map[c.id] = true; });
 
   var statusMap = {};
   cstdStatusData.forEach(function(s) { statusMap[s.candidate_id] = s.status; });
 
   var cstdCandidates = ldttData.filter(function(c) {
-    return /CSTĐ/.test(c.basis || '') || !!statusMap[c.id];
+    // Tiêu chí 1: KI năm 2026 đạt loại A trở lên
+    var kiStr = String(c.ki || '').trim().toUpperCase();
+    var isKiA = (kiStr === 'A' || kiStr === 'A+' || kiStr.indexOf('A') === 0);
+    if (!isKiA) return false;
+
+    // Tiêu chí 2: Top 18 LĐTT HOẶC có Sáng kiến - Ý tưởng
+    var isTop18 = !!top18Map[c.id];
+    var initStr = String(c.initiative || '').trim();
+    var hasInitiative = initStr !== '' && initStr !== '—' && initStr !== 'Không';
+
+    return isTop18 || hasInitiative;
   });
 
   var headers = [
@@ -598,7 +610,17 @@ function syncCstdSheet() {
   ];
 
   var rows = cstdCandidates.map(function(c, i) {
-    var st = statusMap[c.id] || (c.votes > 20 ? 'Đủ chuẩn CSTĐ' : 'Chờ bỏ phiếu CSTĐ');
+    var isTop18 = !!top18Map[c.id];
+    var initStr = String(c.initiative || '').trim();
+    var hasInitiative = initStr !== '' && initStr !== '—' && initStr !== 'Không';
+
+    var defaultStatus = 'Đủ chuẩn sơ bộ';
+    if (isTop18 && hasInitiative) defaultStatus = 'Top 18 LĐTT + Sáng kiến';
+    else if (isTop18) defaultStatus = 'Top 18 LĐTT (KI loại A)';
+    else defaultStatus = 'Có Sáng kiến (KI loại A)';
+
+    var st = statusMap[c.id] || defaultStatus;
+
     return [
       i + 1,
       c.id,

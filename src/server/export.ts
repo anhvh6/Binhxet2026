@@ -74,19 +74,65 @@ export async function exportExcel(data: Dashboard) {
   );
   ldtt.getColumn(6).numFmt = "0.00%";
   ldtt.getColumn(7).numFmt = "0.000";
-  add(
+
+  // Sắp xếp LĐTT để xác định Top 18
+  const sorted = [...data.results].sort(
+    (a, b) =>
+      b.votes - a.votes ||
+      b.rate - a.rate ||
+      b.score - a.score ||
+      a.id.localeCompare(b.id)
+  );
+  const top18 = sorted.slice(0, 18);
+  const top18Ids = new Set(top18.map((c) => c.id));
+
+  // Bảng 2: TONG HOP TEAM (Số người trong team thuộc Top 18 LĐTT và Tỷ lệ % trên 18)
+  const teamRows = data.teams.map((t, i) => {
+    const top18InTeam = top18.filter((c) => c.team === t.id).length;
+    const pct = top18InTeam / 18;
+    return [i + 1, t.id, t.size, top18InTeam, pct];
+  });
+  const totalNv = data.teams.reduce((n, t) => n + t.size, 0);
+  const totalTop18 = top18.length;
+  const teamSheet = add(
     "TONG HOP TEAM",
-    ["STT", "Team", "Tổng số NV", "Số người được chọn"],
+    ["STT", "Team", "Tổng số NV", "Số người được chọn", "Tỷ lệ %"],
     [
-      ...data.teams.map((t, i) => [i + 1, t.id, t.size, t.votes]),
+      ...teamRows,
       [
-        "Tổng",
+        "Tổng cộng",
         "",
-        data.teams.reduce((n, t) => n + t.size, 0),
-        data.totalChoices,
+        totalNv,
+        totalTop18,
+        totalTop18 / 18,
       ],
     ],
   );
+  teamSheet.getColumn(5).numFmt = "0.0%";
+
+  // Bảng 3: Bình chọn CSTĐ 2026
+  // Lọc ra các nhân viên đảm bảo đủ các tiêu chí:
+  // 1) Kết quả xếp loại KI năm 2026: Đạt loại A trở lên
+  // 2) Đạt 1 trong các tiêu chuẩn thành tích:
+  //    • là 1 trong 18 người có số phiếu bầu nhiều nhất từ trên xuống (đạt danh hiệu lao động tiên tiến)
+  //    • Có SÁNG KIẾN - Ý TƯỞNG
+  const cstdCandidates = sorted.filter((c) => {
+    const isKiA =
+      c.ki === "A" ||
+      c.ki === "A+" ||
+      c.ki?.toUpperCase().startsWith("A");
+    if (!isKiA) return false;
+
+    const isTop18 = top18Ids.has(c.id);
+    const hasInitiative =
+      Boolean(c.initiative) &&
+      c.initiative.trim() !== "" &&
+      c.initiative.trim() !== "—" &&
+      c.initiative.trim() !== "Không";
+
+    return isTop18 || hasInitiative;
+  });
+
   const cstd = add(
     "Bình chọn CSTĐ 2026",
     [
@@ -102,11 +148,24 @@ export async function exportExcel(data: Dashboard) {
       "Khen thưởng ĐV + TĐ",
       "Bình chọn CSTĐ",
     ],
-    data.results
-      .filter(
-        (c) => /CSTĐ/.test(c.basis) || data.cstd.some((r) => r.id === c.id),
-      )
-      .map((c, i) => [
+    cstdCandidates.map((c, i) => {
+      const isTop18 = top18Ids.has(c.id);
+      const hasInitiative =
+        Boolean(c.initiative) &&
+        c.initiative.trim() !== "" &&
+        c.initiative.trim() !== "—" &&
+        c.initiative.trim() !== "Không";
+
+      let defaultStatus = "Đủ chuẩn sơ bộ";
+      if (isTop18 && hasInitiative) {
+        defaultStatus = "Top 18 LĐTT + Sáng kiến";
+      } else if (isTop18) {
+        defaultStatus = "Top 18 LĐTT (KI loại A)";
+      } else {
+        defaultStatus = "Có Sáng kiến (KI loại A)";
+      }
+
+      return [
         i + 1,
         c.id,
         c.name,
@@ -117,8 +176,9 @@ export async function exportExcel(data: Dashboard) {
         c.ki,
         c.initiative,
         c.reward,
-        data.cstd.find((r) => r.id === c.id)?.status ?? cstdStatus(c.basis),
-      ]),
+        data.cstd.find((r) => r.id === c.id)?.status ?? defaultStatus,
+      ];
+    }),
   );
   cstd.getColumn(6).numFmt = "0.00%";
   cstd.getColumn(7).numFmt = "0.000";

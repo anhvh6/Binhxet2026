@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -22,7 +22,6 @@ import { Button } from "./ui/button";
 import { Dialog } from "./ui/dialog";
 import { api } from "@/lib/client";
 import type { Dashboard } from "@/lib/types";
-import { cstdStatus } from "@/lib/domain";
 
 export function Admin() {
   const router = useRouter();
@@ -31,7 +30,9 @@ export function Admin() {
       error: loadError,
       mutate,
     } = useSWR<Dashboard>("admin/dashboard", api, {
-      refreshInterval: 20000,
+      refreshInterval: 15000,
+      dedupingInterval: 5000,
+      revalidateOnFocus: true,
       shouldRetryOnError: false,
     }),
     [query, setQuery] = useState(""),
@@ -130,31 +131,105 @@ export function Admin() {
     submitted = data.submitted ?? 0,
     percent = total ? Math.round((submitted / total) * 100) : 0;
 
-  // Sắp xếp LĐTT: từ cao xuống thấp theo Số Bình chọn LĐTT
-  const results = (data.results ?? [])
-    .filter(
-      (c) =>
-        (!team || c.team === team) &&
-        `${c.id} ${c.name}`
-          .toLocaleLowerCase("vi")
-          .includes(query.toLocaleLowerCase("vi")),
+  // 1. Sắp xếp toàn bộ ứng viên LĐTT: từ cao xuống thấp theo Số Bình chọn LĐTT -> Tỷ lệ -> Điểm TB -> MNV
+  const sortedCandidates = useMemo(() => {
+    return [...(data.results ?? [])].sort(
+      (a, b) =>
+        b.votes - a.votes ||
+        b.rate - a.rate ||
+        b.score - a.score ||
+        a.id.localeCompare(b.id),
     );
+  }, [data.results]);
 
-  // Bảng CSTĐ 2026: lọc ra những người đủ điều kiện CSTĐ
-  const cstdList = (data.results ?? [])
-    .filter((c) => /CSTĐ/i.test(c.basis) || data.cstd.some((r) => r.id === c.id))
-    .map((c) => ({
-      ...c,
-      cstdState:
-        data.cstd.find((r) => r.id === c.id)?.status ?? cstdStatus(c.basis),
-    }))
-    .filter(
+  // Top 18 người có số phiếu bầu lớn nhất từ trên xuống (đạt danh hiệu LĐTT)
+  const top18 = useMemo(() => sortedCandidates.slice(0, 18), [sortedCandidates]);
+  const top18Ids = useMemo(() => new Set(top18.map((c) => c.id)), [top18]);
+
+  // Bảng 1: Kết quả LĐTT hiển thị (có tìm kiếm và lọc team)
+  const results = useMemo(() => {
+    return sortedCandidates.filter(
       (c) =>
         (!team || c.team === team) &&
         `${c.id} ${c.name}`
           .toLocaleLowerCase("vi")
           .includes(query.toLocaleLowerCase("vi")),
     );
+  }, [sortedCandidates, team, query]);
+
+  // Bảng 2: Tổng hợp theo Team (số người được chọn là số người trong team nằm trong top 18 người có số phiếu lớn nhất và tỷ lệ % trên 18)
+  const teamSummary = useMemo(() => {
+    return data.teams.map((t) => {
+      const top18InTeam = top18.filter((c) => c.team === t.id).length;
+      const percentage = ((top18InTeam / 18) * 100).toFixed(1);
+      return {
+        ...t,
+        top18Count: top18InTeam,
+        percentage,
+      };
+    });
+  }, [data.teams, top18]);
+
+  const totalTop18Count = top18.length;
+  const totalTop18Pct = ((totalTop18Count / 18) * 100).toFixed(1);
+
+  // Bảng 3: Bình chọn CSTĐ 2026
+  // Lọc ra các nhân viên đảm bảo đủ các tiêu chí:
+  // 1) Kết quả xếp loại KI năm 2026: Đạt loại A trở lên
+  // 2) Đạt 1 trong các tiêu chuẩn thành tích:
+  //    • là 1 trong 18 người có số phiếu bầu nhiều nhất từ trên xuống (đạt danh hiệu lao động tiên tiến)
+  //    • Có SÁNG KIẾN - Ý TƯỞNG
+  const cstdList = useMemo(() => {
+    return sortedCandidates
+      .filter((c) => {
+        // Tiêu chí 1: KI loại A trở lên
+        const isKiA =
+          c.ki === "A" ||
+          c.ki === "A+" ||
+          c.ki?.toUpperCase().startsWith("A");
+        if (!isKiA) return false;
+
+        // Tiêu chí 2: Thuộc Top 18 LĐTT HOẶC Có Sáng kiến - Ý tưởng
+        const isTop18 = top18Ids.has(c.id);
+        const hasInitiative =
+          Boolean(c.initiative) &&
+          c.initiative.trim() !== "" &&
+          c.initiative.trim() !== "—" &&
+          c.initiative.trim() !== "Không";
+
+        return isTop18 || hasInitiative;
+      })
+      .map((c) => {
+        const isTop18 = top18Ids.has(c.id);
+        const hasInitiative =
+          Boolean(c.initiative) &&
+          c.initiative.trim() !== "" &&
+          c.initiative.trim() !== "—" &&
+          c.initiative.trim() !== "Không";
+
+        let defaultReason = "Đủ chuẩn sơ bộ";
+        if (isTop18 && hasInitiative) {
+          defaultReason = "Top 18 LĐTT + Sáng kiến";
+        } else if (isTop18) {
+          defaultReason = "Top 18 LĐTT (KI loại A)";
+        } else {
+          defaultReason = "Có Sáng kiến (KI loại A)";
+        }
+
+        return {
+          ...c,
+          cstdState:
+            data.cstd.find((r) => r.id === c.id)?.status ?? defaultReason,
+        };
+      })
+      .filter(
+        (c) =>
+          (!team || c.team === team) &&
+          `${c.id} ${c.name}`
+            .toLocaleLowerCase("vi")
+            .includes(query.toLocaleLowerCase("vi")),
+      );
+  }, [sortedCandidates, top18Ids, data.cstd, team, query]);
 
   return (
     <>
@@ -272,8 +347,8 @@ export function Admin() {
                 {tab === "ldtt"
                   ? "Xếp theo thứ tự từ cao xuống thấp số lượt được bình chọn trong cột 'Bình chọn LĐTT' không phân biệt team."
                   : tab === "teams"
-                    ? "Tổng số nhân viên là tổng số người trong team đó, số người được chọn là tổng số mọi người đã bình chọn cho nhân viên thuộc team đó."
-                    : "Danh sách các nhân viên đủ điều kiện bình chọn CSTĐ theo dữ liệu nguồn."}
+                    ? "Tổng hợp số nhân sự của từng team nằm trong Top 18 người có số phiếu bầu lớn nhất từ trên xuống (đạt danh hiệu LĐTT) và tỷ lệ % trên 18."
+                    : "Lọc các nhân sự đủ tiêu chuẩn: KI năm 2026 đạt loại A trở lên VÀ (thuộc Top 18 LĐTT có số phiếu bầu nhiều nhất HOẶC có Sáng kiến - Ý tưởng)."}
               </p>
             </div>
             <BarChart3 size={24} />
@@ -384,10 +459,11 @@ export function Admin() {
                     <th>Team</th>
                     <th>Tổng số NV</th>
                     <th>Số người được chọn</th>
+                    <th>Tỷ lệ %</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {data.teams.map((t, i) => (
+                  {teamSummary.map((t, i) => (
                     <tr key={t.id}>
                       <td>{i + 1}</td>
                       <td>
@@ -395,7 +471,12 @@ export function Admin() {
                       </td>
                       <td>{t.size}</td>
                       <td>
-                        <strong>{t.votes}</strong> lượt
+                        <strong className="vote-value">{t.top18Count}</strong> người
+                      </td>
+                      <td>
+                        <span className="font-semibold text-emerald-700">
+                          {t.percentage}%
+                        </span>
                       </td>
                     </tr>
                   ))}
@@ -403,7 +484,12 @@ export function Admin() {
                     <td colSpan={2}>Tổng cộng</td>
                     <td>{total}</td>
                     <td>
-                      <strong>{data.totalChoices}</strong> lượt
+                      <strong className="vote-value">{totalTop18Count}</strong> người
+                    </td>
+                    <td>
+                      <strong className="text-emerald-700">
+                        {totalTop18Pct}%
+                      </strong>
                     </td>
                   </tr>
                 </tbody>

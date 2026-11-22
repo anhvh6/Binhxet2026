@@ -292,6 +292,15 @@ describe("Google Sheets voting service", () => {
     expect(wb.worksheets[0].getCell("B2").value).toBe("000001");
     expect(wb.worksheets[0].getCell("K2").value).toBe("0000");
     expect(wb.worksheets[0].getColumn(6).numFmt).toBe("0.00%");
+    expect(wb.worksheets[1].getRow(1).values).toEqual([
+      undefined,
+      "STT",
+      "Team",
+      "Tổng số NV",
+      "Số người được chọn",
+      "Tỷ lệ %",
+    ]);
+    expect(wb.worksheets[1].getColumn(5).numFmt).toBe("0.0%");
     expect(wb.worksheets[3].rowCount).toBe(2);
     expect(
       h.data.get("NHAT KY HE THONG")!.some((r) => r[2] === "EXCEL_EXPORT"),
