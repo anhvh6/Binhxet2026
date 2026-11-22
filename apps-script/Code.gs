@@ -230,7 +230,7 @@ function dispatch(action,p){
  if(action==='unlock'){
   var s=session(p.tokenHash,'voter');
   limited('edit:'+s[2],10);
-  if(!p.verified)fail('Mã xác nhận sửa không hợp lệ (mã là 2405).',401);
+  if(!p.verified)fail('Mã xác nhận sửa không hợp lệ.',401);
   var t=table('sessions'),index=t.rows.findIndex(function(r){return r[0]===s[0];});
   s[4]=Date.now()+900000; // 15 phút
   var cs=credentials(),c=cs.rows.find(function(r){return r[1]===s[2];});
@@ -243,7 +243,7 @@ function dispatch(action,p){
   var digest=sha(JSON.stringify({choices:p.choices,revision:p.revision})),prior=table('requests').rows.find(function(r){return r[0]===s[2]&&r[1]===p.idempotencyKey;});
   if(action==='submit'&&prior){if(prior[2]!==digest)fail('Khóa yêu cầu đã được dùng cho phiếu khác.',409);return JSON.parse(prior[3]);}
   if(e.status!=='open')fail('Kỳ bình chọn đã đóng.',409);
-  if(old&&Number(s[4])<=Date.now())fail('Phiếu đã nộp. Bạn cần nhập mã xác nhận sửa (2405) để chỉnh sửa.',409);
+  if(old&&Number(s[4])<=Date.now())fail('Phiếu đã nộp. Bạn cần nhập mã xác nhận sửa để chỉnh sửa.',409);
   if((old?old.revision:0)!==p.revision)fail('Phiếu đã thay đổi ở phiên khác. Hãy tải lại.',409);
   validate(e.snapshot,p.choices);
   if(action==='validate')return {ok:true};

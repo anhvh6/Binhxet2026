@@ -35,7 +35,7 @@ export function BallotScreen() {
     [error, setError] = useState(""),
     [notice, setNotice] = useState(
       isSubmittedParam
-        ? "Mã này đã nộp phiếu bình chọn. Bạn có thể xem lại hoặc nhập mã 2405 để sửa phiếu."
+        ? "Mã này đã nộp phiếu bình chọn. Bạn có thể xem lại hoặc nhập mã xác nhận để sửa phiếu."
         : "",
     ),
     [busy, setBusy] = useState(false),
@@ -54,7 +54,7 @@ export function BallotScreen() {
           setStage("review");
         } else if (data.ballot && !data.canEdit && initialMode === "vote") {
           setStage("review");
-          setNotice("Mã này đã nộp phiếu. Nếu muốn sửa lại, vui lòng nhấn 'Sửa' và nhập mã xác nhận 2405.");
+          setNotice("Mã này đã nộp phiếu. Nếu muốn sửa lại, vui lòng nhấn 'Sửa' và nhập mã xác nhận.");
         } else {
           setStage(initialMode === "review" && data.ballot ? "review" : "vote");
         }
@@ -458,7 +458,7 @@ export function BallotScreen() {
               Về trang chủ
             </Button>
             <span>
-              Muốn sửa lại phiếu đã nộp, nhấn nút &quot;Sửa phiếu&quot; và nhập mã xác nhận <strong>2405</strong>.
+              Muốn sửa lại phiếu đã nộp, nhấn nút &quot;Sửa phiếu&quot; và nhập mã xác nhận.
             </span>
           </div>
         )}
@@ -541,12 +541,12 @@ export function BallotScreen() {
         </div>
       )}
 
-      {/* Dialog nhập mã xác nhận 2405 để sửa phiếu */}
+      {/* Dialog nhập mã xác nhận để sửa phiếu */}
       <Dialog
         open={editDialog}
         onOpenChange={setEditDialog}
         title="Nhập mã xác nhận để sửa phiếu"
-        description="Nhập mã xác nhận '2405' để mở quyền chỉnh sửa lại phiếu bình chọn cho mã này."
+        description="Nhập mã xác nhận để mở quyền chỉnh sửa lại phiếu bình chọn cho mã này."
       >
         <form
           onSubmit={(e) => {
@@ -561,7 +561,7 @@ export function BallotScreen() {
             inputMode="numeric"
             pattern="[0-9]{4}"
             maxLength={4}
-            placeholder="Nhập mã (2405)"
+            placeholder="Nhập mã xác nhận"
             value={editCode}
             onChange={(e) => setEditCode(e.target.value.replace(/\D/g, ""))}
             required
