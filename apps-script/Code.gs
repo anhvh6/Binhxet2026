@@ -281,3 +281,673 @@ function dispatch(action,p){
  }
  fail('Chức năng không tồn tại.',404);
 }
+
+// ==============================================================================
+// PHẦN 2: HỆ THỐNG ĐỒNG BỘ 2 CHIỀU GOOGLE SHEETS <--> SUPABASE
+// ==============================================================================
+
+/**
+ * Tự động tạo Menu khi mở Google Spreadsheet
+ */
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu('⚡ VCX - Đồng bộ Supabase')
+    .addItem('📥 Cập nhật TOÀN BỘ từ Supabase về Sheet', 'syncAllFromSupabase')
+    .addItem('📥 Cập nhật Sheet HIỆN TẠI từ Supabase', 'syncCurrentSheetFromSupabase')
+    .addSeparator()
+    .addItem('📤 Đẩy TOÀN BỘ nhân sự nguồn lên Supabase', 'pushAllToSupabase')
+    .addItem('📤 Đẩy Sheet HIỆN TẠI lên Supabase', 'pushCurrentSheetToSupabase')
+    .addSeparator()
+    .addItem('📊 Xuất bảng CHI TIẾT mã đã chọn cho từng người', 'exportDetailedVoterSheet')
+    .addItem('🔍 Kiểm tra kết nối Supabase', 'testSupabaseConnection')
+    .addItem('⚙️ Cấu hình Supabase (URL & API Key)', 'configureSupabaseSettings')
+    .addToUi();
+}
+
+/**
+ * Lấy cấu hình Supabase URL & Key từ Script Properties
+ */
+function getSupabaseConfig(promptIfMissing) {
+  var p = PropertiesService.getScriptProperties();
+  var url = p.getProperty('SUPABASE_URL') || 'https://kbmkxfkfhtgdgpqujcxv.supabase.co';
+  var key = p.getProperty('SUPABASE_KEY') || p.getProperty('SUPABASE_ANON_KEY') || '';
+
+  if (!key && promptIfMissing) {
+    var ui = SpreadsheetApp.getUi();
+    var res = ui.prompt(
+      'Cấu hình Supabase API Key',
+      'Vui lòng dán Supabase API Key (Publishable key hoặc Secret key):\n\n' +
+      '(Lấy từ Supabase Dashboard > Project Settings > API)',
+      ui.ButtonSet.OK_CANCEL
+    );
+    if (res.getSelectedButton() === ui.Button.OK) {
+      key = res.getResponseText().trim();
+      if (key) {
+        p.setProperty('SUPABASE_KEY', key);
+        p.setProperty('SUPABASE_URL', url);
+        ui.alert('Đã lưu API Key thành công!');
+      }
+    }
+  }
+
+  if (!key) {
+    throw new Error('Chưa cấu hình SUPABASE_KEY. Vui lòng vào menu: ⚡ VCX - Đồng bộ Supabase > ⚙️ Cấu hình Supabase.');
+  }
+
+  return { url: url.replace(/\/$/, ''), key: key };
+}
+
+/**
+ * Gọi REST API tới Supabase (PostgREST)
+ */
+function callSupabaseApi(endpoint, options) {
+  var config = getSupabaseConfig(true);
+  var fullUrl = config.url + '/rest/v1/' + endpoint;
+
+  var headers = {
+    'apikey': config.key,
+    'Authorization': 'Bearer ' + config.key,
+    'Content-Type': 'application/json'
+  };
+
+  if (options && options.prefer) {
+    headers['Prefer'] = options.prefer;
+  }
+
+  var fetchOptions = {
+    method: (options && options.method) || 'get',
+    headers: headers,
+    muteHttpExceptions: true
+  };
+
+  if (options && options.payload) {
+    fetchOptions.payload = JSON.stringify(options.payload);
+  }
+
+  var res = UrlFetchApp.fetch(fullUrl, fetchOptions);
+  var code = res.getResponseCode();
+  var text = res.getContentText();
+
+  if (code >= 400) {
+    throw new Error('Lỗi Supabase (' + code + '): ' + text);
+  }
+
+  return text ? JSON.parse(text) : null;
+}
+
+/**
+ * Kiểm tra kết nối Supabase và hiển thị thông tin tổng quan
+ */
+function testSupabaseConnection() {
+  var ui = SpreadsheetApp.getUi();
+  try {
+    var startTime = Date.now();
+    var elections = callSupabaseApi('elections?select=*&id=eq.vcx-2026');
+    var candidates = callSupabaseApi('candidates?select=id');
+    var ballots = callSupabaseApi('ballots?select=id');
+    var creds = callSupabaseApi('voter_credentials?select=code,status');
+    var latency = Date.now() - startTime;
+
+    var el = (elections && elections.length > 0) ? elections[0] : null;
+    var submittedCount = (ballots && ballots.length) || 0;
+    var candidatesCount = (candidates && candidates.length) || 0;
+    var credsCount = (creds && creds.length) || 0;
+
+    ui.alert(
+      '✅ Kết nối Supabase thành công!',
+      '• URL: ' + (getSupabaseConfig().url) + '\n' +
+      '• Kỳ bình chọn: ' + (el ? el.id + ' (Năm: ' + el.year + ', Trạng thái: ' + el.status + ')' : 'Chưa khởi tạo') + '\n' +
+      '• Số ứng viên (candidates): ' + candidatesCount + '\n' +
+      '• Tổng số mã bí mật (credentials): ' + credsCount + '\n' +
+      '• Số phiếu đã nộp (ballots): ' + submittedCount + '\n' +
+      '• Độ trễ phản hồi (latency): ' + latency + ' ms\n\n' +
+      'Hệ thống sẵn sàng đồng bộ 2 chiều.',
+      ui.ButtonSet.OK
+    );
+  } catch (e) {
+    ui.alert('❌ Lỗi kết nối Supabase', e.message, ui.ButtonSet.OK);
+  }
+}
+
+/**
+ * Cấu hình lại Supabase URL & Key từ hộp thoại
+ */
+function configureSupabaseSettings() {
+  var ui = SpreadsheetApp.getUi();
+  var p = PropertiesService.getScriptProperties();
+  var currentUrl = p.getProperty('SUPABASE_URL') || 'https://kbmkxfkfhtgdgpqujcxv.supabase.co';
+  var currentKey = p.getProperty('SUPABASE_KEY') || p.getProperty('SUPABASE_ANON_KEY') || '';
+
+  var resUrl = ui.prompt(
+    'Cấu hình Supabase Project URL',
+    'Nhập URL Project Supabase (hiện tại: ' + currentUrl + '):',
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (resUrl.getSelectedButton() !== ui.Button.OK) return;
+  var newUrl = resUrl.getResponseText().trim() || currentUrl;
+
+  var resKey = ui.prompt(
+    'Cấu hình Supabase API Key',
+    'Nhập Supabase Publishable / Anon / Secret Key\n(Hiện tại: ' + (currentKey ? currentKey.slice(0, 15) + '...' : 'Chưa có') + '):',
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (resKey.getSelectedButton() !== ui.Button.OK) return;
+  var newKey = resKey.getResponseText().trim() || currentKey;
+
+  if (newKey) {
+    p.setProperty('SUPABASE_URL', newUrl);
+    p.setProperty('SUPABASE_KEY', newKey);
+    ui.alert('✅ Đã lưu cấu hình Supabase thành công!');
+  }
+}
+
+/**
+ * Helper định dạng Header cho Sheet
+ */
+function applyHeaderFormat(sheet, numCols) {
+  var range = sheet.getRange(1, 1, 1, numCols);
+  range.setBackground('#10233f')
+    .setFontColor('#ffffff')
+    .setFontWeight('bold')
+    .setHorizontalAlignment('center')
+    .setVerticalAlignment('middle')
+    .setWrap(true);
+  sheet.setRowHeight(1, 36);
+  sheet.setFrozenRows(1);
+}
+
+/**
+ * Helper ghi dữ liệu vào Sheet an toàn
+ */
+function writeToSheet(sheetName, headers, rows) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
+  } else {
+    sheet.clearContents();
+  }
+
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  applyHeaderFormat(sheet, headers.length);
+
+  if (rows && rows.length > 0) {
+    var dataRange = sheet.getRange(2, 1, rows.length, headers.length);
+    dataRange.setValues(rows);
+    dataRange.setVerticalAlignment('middle');
+  }
+
+  SpreadsheetApp.flush();
+  return sheet;
+}
+
+/**
+ * 1. ĐỒNG BỘ: KET QUA LDTT
+ */
+function syncLdttSheet() {
+  var data = callSupabaseApi('view_results_ldtt?select=*&order=votes.desc,score.desc,id.asc');
+  if (!data) return;
+
+  var headers = [
+    'STT', 'MNV', 'Họ Và Tên', 'Team', 'Số Bình chọn LĐTT',
+    'Tỷ lệ chọn (%)', 'Điểm TB 3 quý', 'Xếp loại KI dự kiến',
+    'Sáng kiến - Ý Tưởng', 'Khen thưởng ĐV + TĐ'
+  ];
+
+  var rows = data.map(function(c, i) {
+    return [
+      i + 1,
+      c.id,
+      c.name,
+      c.team,
+      Number(c.votes) || 0,
+      Number(c.rate) || 0,
+      Number(c.score) || 0,
+      c.ki || '',
+      c.initiative || '',
+      c.reward || ''
+    ];
+  });
+
+  var sheet = writeToSheet('KET QUA LDTT', headers, rows);
+  if (rows.length > 0) {
+    sheet.getRange(2, 6, rows.length, 1).setNumberFormat('0.00%');
+    sheet.getRange(2, 7, rows.length, 1).setNumberFormat('0.000');
+  }
+  return rows.length;
+}
+
+/**
+ * 2. ĐỒNG BỘ: TỔNG HỢP TEAM (view_results_team)
+ */
+function syncTeamSheet() {
+  var teamsData = callSupabaseApi('view_results_team?select=*&order=order_index.asc');
+  if (!teamsData) return;
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var existingSheet = ss.getSheetByName('TONG HOP TEAM');
+
+  // Nếu đã có sheet TONG HOP TEAM theo form chuẩn, ta cập nhật cột SỐ CHỌN LĐTT
+  if (existingSheet && existingSheet.getLastRow() >= 8) {
+    var teamColValues = existingSheet.getRange(2, 2, 7, 1).getDisplayValues(); // Cột Team
+    for (var i = 0; i < teamColValues.length; i++) {
+      var teamName = teamColValues[i][0];
+      var matched = teamsData.find(function(t) { return t.id === teamName; });
+      if (matched) {
+        existingSheet.getRange(i + 2, 6).setValue(Number(matched.votes) || 0); // Cột F: SỐ CHỌN LĐTT
+      }
+    }
+  }
+
+  // Đồng thời cập nhật hoặc tạo tab tổng hợp rõ ràng KET QUA TEAM
+  var headers = ['STT', 'Nhóm', 'Team', 'Tổng số NV', 'Chỉ tiêu chọn', 'Lead', 'Số người được chọn'];
+  var totalNv = 0, totalVotes = 0;
+  var rows = teamsData.map(function(t, i) {
+    totalNv += Number(t.size) || 0;
+    totalVotes += Number(t.votes) || 0;
+    return [
+      i + 1,
+      t.label || '',
+      t.id,
+      Number(t.size) || 0,
+      Number(t.quota) || 0,
+      t.lead || '',
+      Number(t.votes) || 0
+    ];
+  });
+  rows.push(['Tổng', '', '', totalNv, Math.floor(totalNv / 2), '', totalVotes]);
+
+  writeToSheet('KET QUA TEAM', headers, rows);
+  return rows.length;
+}
+
+/**
+ * 3. ĐỒNG BỘ: BÌNH CHỌN CSTĐ 2026
+ */
+function syncCstdSheet() {
+  var ldttData = callSupabaseApi('view_results_ldtt?select=*&order=votes.desc,score.desc,id.asc');
+  var cstdStatusData = callSupabaseApi('cstd_status?select=*') || [];
+  if (!ldttData) return;
+
+  var statusMap = {};
+  cstdStatusData.forEach(function(s) { statusMap[s.candidate_id] = s.status; });
+
+  var cstdCandidates = ldttData.filter(function(c) {
+    return /CSTĐ/.test(c.basis || '') || !!statusMap[c.id];
+  });
+
+  var headers = [
+    'STT', 'MNV', 'Họ Và Tên', 'Team', 'Số Bình chọn LĐTT',
+    'Tỷ lệ chọn (%)', 'Điểm TB 3 quý', 'Xếp loại KI dự kiến',
+    'Sáng kiến - Ý Tưởng', 'Khen thưởng ĐV + TĐ', 'Bình chọn CSTĐ'
+  ];
+
+  var rows = cstdCandidates.map(function(c, i) {
+    var st = statusMap[c.id] || (c.votes > 20 ? 'Đủ chuẩn CSTĐ' : 'Chờ bỏ phiếu CSTĐ');
+    return [
+      i + 1,
+      c.id,
+      c.name,
+      c.team,
+      Number(c.votes) || 0,
+      Number(c.rate) || 0,
+      Number(c.score) || 0,
+      c.ki || '',
+      c.initiative || '',
+      c.reward || '',
+      st
+    ];
+  });
+
+  var sheet = writeToSheet('Bình chọn CSTĐ 2026', headers, rows);
+  if (rows.length > 0) {
+    sheet.getRange(2, 6, rows.length, 1).setNumberFormat('0.00%');
+    sheet.getRange(2, 7, rows.length, 1).setNumberFormat('0.000');
+  }
+  return rows.length;
+}
+
+/**
+ * 4. ĐỒNG BỘ: PHIẾU BÌNH CHỌN (ballots)
+ */
+function syncBallotsSheet() {
+  var ballots = callSupabaseApi('ballots?select=*&order=submitted_at.desc');
+  if (!ballots) return;
+
+  var headers = [
+    'STT', 'Mã phiếu', 'Mã bình chọn', 'Trạng thái',
+    'Ngày nộp', 'Ngày sửa cuối', 'Lần sửa (Revision)', 'Số người đã chọn', 'Danh sách MNV chọn'
+  ];
+
+  var rows = ballots.map(function(b, i) {
+    var choices = Array.isArray(b.choices) ? b.choices : JSON.parse(b.choices || '[]');
+    return [
+      i + 1,
+      b.id,
+      b.voter_code,
+      b.status || 'submitted',
+      b.submitted_at || '',
+      b.updated_at || '',
+      (Number(b.revision) || 1) - 1,
+      choices.length,
+      choices.join(', ')
+    ];
+  });
+
+  writeToSheet('PHIEU BINH CHON', headers, rows);
+  return rows.length;
+}
+
+/**
+ * 5. ĐỒNG BỘ: MÃ BÌNH CHỌN (voter_credentials - ẨN DANH HOÀN TOÀN)
+ */
+function syncCredentialsSheet() {
+  var creds = callSupabaseApi('voter_credentials?select=*&order=code.asc');
+  if (!creds) return;
+
+  var headers = ['STT', 'Mã bình chọn', 'Trạng thái', 'Ngày nộp', 'Ngày sửa'];
+  var rows = creds.map(function(c, i) {
+    return [
+      i + 1,
+      c.code,
+      c.status || 'Chưa sử dụng',
+      c.submitted_at || '',
+      c.updated_at || ''
+    ];
+  });
+
+  writeToSheet('MA BINH CHON', headers, rows);
+  return rows.length;
+}
+
+/**
+ * 6. XUẤT CHI TIẾT CÁC MÃ ĐÃ CHỌN CHO TỪNG NHÂN VIÊN
+ */
+function exportDetailedVoterSheet() {
+  var ldttData = callSupabaseApi('view_results_ldtt?select=*&order=votes.desc,score.desc,id.asc');
+  if (!ldttData) return;
+
+  var headers = [
+    'STT', 'MNV', 'Họ Và Tên', 'Team', 'Số Bình chọn LĐTT',
+    'Tỷ lệ chọn (%)', 'Điểm TB 3 quý', 'Xếp loại KI dự kiến',
+    'Sáng kiến - Ý Tưởng', 'Khen thưởng ĐV + TĐ', 'Chi tiết các mã đã bình chọn'
+  ];
+
+  var rows = ldttData.map(function(c, i) {
+    var codes = Array.isArray(c.voter_codes) ? c.voter_codes : [];
+    return [
+      i + 1,
+      c.id,
+      c.name,
+      c.team,
+      Number(c.votes) || 0,
+      Number(c.rate) || 0,
+      Number(c.score) || 0,
+      c.ki || '',
+      c.initiative || '',
+      c.reward || '',
+      codes.join(', ')
+    ];
+  });
+
+  var sheet = writeToSheet('XUAT CHI TIET', headers, rows);
+  if (rows.length > 0) {
+    sheet.getRange(2, 6, rows.length, 1).setNumberFormat('0.00%');
+    sheet.getRange(2, 7, rows.length, 1).setNumberFormat('0.000');
+  }
+
+  SpreadsheetApp.getUi().alert(
+    '✅ Xuất chi tiết thành công!',
+    'Đã tạo bảng chi tiết các mã bí mật bình chọn cho từng nhân viên tại tab "XUAT CHI TIET".',
+    SpreadsheetApp.getUi().ButtonSet.OK
+  );
+  return rows.length;
+}
+
+/**
+ * ĐỒNG BỘ TOÀN BỘ CÁC SHEET TỪ SUPABASE
+ */
+function syncAllFromSupabase() {
+  var ui = SpreadsheetApp.getUi();
+  try {
+    syncLdttSheet();
+    syncTeamSheet();
+    syncCstdSheet();
+    syncBallotsSheet();
+    syncCredentialsSheet();
+    exportDetailedVoterSheet();
+
+    ui.alert(
+      '✅ Đồng bộ toàn bộ hoàn tất!',
+      'Đã cập nhật dữ liệu mới nhất từ Supabase về 6 sheet:\n' +
+      '1. KET QUA LDTT\n' +
+      '2. TONG HOP TEAM / KET QUA TEAM\n' +
+      '3. Bình chọn CSTĐ 2026\n' +
+      '4. PHIEU BINH CHON\n' +
+      '5. MA BINH CHON\n' +
+      '6. XUAT CHI TIET',
+      ui.ButtonSet.OK
+    );
+  } catch (e) {
+    ui.alert('❌ Lỗi khi đồng bộ từ Supabase', e.message, ui.ButtonSet.OK);
+  }
+}
+
+/**
+ * ĐỒNG BỘ SHEET HIỆN TẠI TỪ SUPABASE
+ */
+function syncCurrentSheetFromSupabase() {
+  var ui = SpreadsheetApp.getUi();
+  var activeSheet = SpreadsheetApp.getActiveSheet();
+  var name = activeSheet.getName().toUpperCase();
+
+  try {
+    if (name.indexOf('LDTT') >= 0 || name.indexOf('KẾT QUẢ') >= 0) {
+      syncLdttSheet();
+      ui.alert('✅ Đã cập nhật xong sheet KET QUA LDTT từ Supabase!');
+    } else if (name.indexOf('TEAM') >= 0) {
+      syncTeamSheet();
+      ui.alert('✅ Đã cập nhật xong sheet tổng hợp TEAM từ Supabase!');
+    } else if (name.indexOf('CSTĐ') >= 0 || name.indexOf('CSTD') >= 0) {
+      syncCstdSheet();
+      ui.alert('✅ Đã cập nhật xong sheet Bình chọn CSTĐ 2026 từ Supabase!');
+    } else if (name.indexOf('PHIEU') >= 0 || name.indexOf('PHIẾU') >= 0) {
+      syncBallotsSheet();
+      ui.alert('✅ Đã cập nhật xong sheet PHIEU BINH CHON từ Supabase!');
+    } else if (name.indexOf('MA') >= 0 || name.indexOf('MÃ') >= 0) {
+      syncCredentialsSheet();
+      ui.alert('✅ Đã cập nhật xong sheet MA BINH CHON từ Supabase!');
+    } else if (name.indexOf('CHI TIET') >= 0 || name.indexOf('CHI TIẾT') >= 0) {
+      exportDetailedVoterSheet();
+    } else {
+      var res = ui.alert(
+        'Sheet hiện tại: "' + activeSheet.getName() + '"',
+        'Sheet này không phải là sheet kết quả chuẩn. Bạn có muốn đồng bộ toàn bộ các sheet kết quả không?',
+        ui.ButtonSet.YES_NO
+      );
+      if (res === ui.Button.YES) {
+        syncAllFromSupabase();
+      }
+    }
+  } catch (e) {
+    ui.alert('❌ Lỗi khi đồng bộ sheet hiện tại', e.message, ui.ButtonSet.OK);
+  }
+}
+
+/**
+ * ĐẨY TOÀN BỘ DỮ LIỆU NGUỒN TỪ SHEET LÊN SUPABASE
+ */
+function pushAllToSupabase() {
+  var ui = SpreadsheetApp.getUi();
+  var res = ui.alert(
+    'Xác nhận đẩy dữ liệu lên Supabase',
+    'Hành động này sẽ đọc danh sách nhân sự từ sheet PTUD (2) / Binh xet và cấu hình Team để cập nhật vào cơ sở dữ liệu Supabase.\n\nBạn có chắc chắn muốn thực hiện?',
+    ui.ButtonSet.YES_NO
+  );
+  if (res !== ui.Button.YES) return;
+
+  try {
+    var source = readSource();
+    if (source.conflicts.length > 0) {
+      ui.alert('⚠️ Phát hiện xung đột dữ liệu nguồn', source.conflicts.join('\n'), ui.ButtonSet.OK);
+      return;
+    }
+
+    // 1. Đẩy Teams
+    var teamsPayload = source.teams.map(function(t) {
+      return {
+        id: t.id,
+        label: t.label,
+        order_index: t.order,
+        size: t.size,
+        quota: t.quota,
+        lead: t.lead
+      };
+    });
+    callSupabaseApi('teams', {
+      method: 'post',
+      prefer: 'resolution=merge-duplicates',
+      payload: teamsPayload
+    });
+
+    // 2. Đẩy Candidates
+    var candidatesPayload = source.candidates.map(function(c) {
+      return {
+        id: c.id,
+        name: c.name,
+        team_id: c.team,
+        is_lead: c.lead,
+        score: c.score,
+        ki: c.ki,
+        initiative: c.initiative,
+        reward: c.reward || '',
+        tenure: c.tenure || '',
+        performance: c.performance || '',
+        basis: c.basis || '',
+        cstd: c.cstd || ''
+      };
+    });
+    callSupabaseApi('candidates', {
+      method: 'post',
+      prefer: 'resolution=merge-duplicates',
+      payload: candidatesPayload
+    });
+
+    // 3. Đẩy Mã bí mật (nếu tab MA BINH CHON đã có)
+    var cs = credentials();
+    if (cs && cs.rows && cs.rows.length > 0) {
+      var credsPayload = cs.rows.map(function(r) {
+        return {
+          code: String(r[1]).padStart(4, '0'),
+          status: r[2] || 'Chưa sử dụng'
+        };
+      });
+      callSupabaseApi('voter_credentials', {
+        method: 'post',
+        prefer: 'resolution=merge-duplicates',
+        payload: credsPayload
+      });
+    }
+
+    // 4. Cập nhật Election
+    callSupabaseApi('elections', {
+      method: 'post',
+      prefer: 'resolution=merge-duplicates',
+      payload: [{
+        id: 'vcx-2026',
+        year: 2026,
+        status: 'open',
+        version: 1,
+        warnings: source.warnings
+      }]
+    });
+
+    ui.alert(
+      '✅ Đẩy dữ liệu lên Supabase thành công!',
+      '• Số Team: ' + source.teams.length + '\n' +
+      '• Số ứng viên (candidates): ' + source.candidates.length + '\n' +
+      '• Trạng thái kỳ bình chọn: open\n' +
+      'Dữ liệu Supabase đã sẵn sàng phục vụ bình chọn trực tuyến!',
+      ui.ButtonSet.OK
+    );
+  } catch (e) {
+    ui.alert('❌ Lỗi đẩy dữ liệu lên Supabase', e.message, ui.ButtonSet.OK);
+  }
+}
+
+/**
+ * ĐẨY DỮ LIỆU SHEET HIỆN TẠI LÊN SUPABASE
+ */
+function pushCurrentSheetToSupabase() {
+  var ui = SpreadsheetApp.getUi();
+  var activeSheet = SpreadsheetApp.getActiveSheet();
+  var name = activeSheet.getName();
+
+  try {
+    if (name === 'PTUD (2)' || name === 'Binh xet') {
+      var source = readSource();
+      var candidatesPayload = source.candidates.map(function(c) {
+        return {
+          id: c.id,
+          name: c.name,
+          team_id: c.team,
+          is_lead: c.lead,
+          score: c.score,
+          ki: c.ki,
+          initiative: c.initiative,
+          reward: c.reward || '',
+          tenure: c.tenure || '',
+          performance: c.performance || '',
+          basis: c.basis || '',
+          cstd: c.cstd || ''
+        };
+      });
+      callSupabaseApi('candidates', {
+        method: 'post',
+        prefer: 'resolution=merge-duplicates',
+        payload: candidatesPayload
+      });
+      ui.alert('✅ Đã cập nhật ' + candidatesPayload.length + ' ứng viên lên Supabase!');
+    } else if (name === 'TONG HOP TEAM') {
+      var source = readSource();
+      var teamsPayload = source.teams.map(function(t) {
+        return {
+          id: t.id,
+          label: t.label,
+          order_index: t.order,
+          size: t.size,
+          quota: t.quota,
+          lead: t.lead
+        };
+      });
+      callSupabaseApi('teams', {
+        method: 'post',
+        prefer: 'resolution=merge-duplicates',
+        payload: teamsPayload
+      });
+      ui.alert('✅ Đã cập nhật ' + teamsPayload.length + ' team lên Supabase!');
+    } else if (name === 'MA BINH CHON') {
+      var cs = credentials();
+      var credsPayload = cs.rows.map(function(r) {
+        return {
+          code: String(r[1]).padStart(4, '0'),
+          status: r[2] || 'Chưa sử dụng'
+        };
+      });
+      callSupabaseApi('voter_credentials', {
+        method: 'post',
+        prefer: 'resolution=merge-duplicates',
+        payload: credsPayload
+      });
+      ui.alert('✅ Đã cập nhật ' + credsPayload.length + ' mã bí mật lên Supabase!');
+    } else {
+      ui.alert(
+        'Thông báo',
+        'Sheet "' + name + '" không phải là sheet nguồn. Hãy chọn tab "PTUD (2)", "Binh xet", "TONG HOP TEAM" hoặc "MA BINH CHON" để đẩy lên Supabase.',
+        ui.ButtonSet.OK
+      );
+    }
+  } catch (e) {
+    ui.alert('❌ Lỗi khi đẩy sheet lên Supabase', e.message, ui.ButtonSet.OK);
+  }
+}
