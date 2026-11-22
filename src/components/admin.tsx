@@ -110,37 +110,17 @@ export function Admin() {
     }
   }
 
-  if (!data)
-    return (
-      <>
-        <Header />
-        <main className="page-shell">
-          <div className={loadError ? "error" : "empty"}>
-            {loadError?.message ?? "Đang tải trang tổng hợp kết quả…"}
-          </div>
-          <div className="mt-4">
-            <Link href="/" className="back-link">Về trang chủ</Link>
-          </div>
-        </main>
-      </>
-    );
-
-  const e = data.election,
-    snapshot = e?.snapshot ?? data.source,
-    total = snapshot?.candidates.length ?? 0,
-    submitted = data.submitted ?? 0,
-    percent = total ? Math.round((submitted / total) * 100) : 0;
-
   // 1. Sắp xếp toàn bộ ứng viên LĐTT: từ cao xuống thấp theo Số Bình chọn LĐTT -> Tỷ lệ -> Điểm TB -> MNV
   const sortedCandidates = useMemo(() => {
-    return [...(data.results ?? [])].sort(
+    if (!data?.results) return [];
+    return [...data.results].sort(
       (a, b) =>
         b.votes - a.votes ||
         b.rate - a.rate ||
         b.score - a.score ||
         a.id.localeCompare(b.id),
     );
-  }, [data.results]);
+  }, [data?.results]);
 
   // Top 18 người có số phiếu bầu lớn nhất từ trên xuống (đạt danh hiệu LĐTT)
   const top18 = useMemo(() => sortedCandidates.slice(0, 18), [sortedCandidates]);
@@ -159,6 +139,7 @@ export function Admin() {
 
   // Bảng 2: Tổng hợp theo Team (số người được chọn là số người trong team nằm trong top 18 người có số phiếu lớn nhất và tỷ lệ % trên 18)
   const teamSummary = useMemo(() => {
+    if (!data?.teams) return [];
     return data.teams.map((t) => {
       const top18InTeam = top18.filter((c) => c.team === t.id).length;
       const percentage = ((top18InTeam / 18) * 100).toFixed(1);
@@ -168,10 +149,7 @@ export function Admin() {
         percentage,
       };
     });
-  }, [data.teams, top18]);
-
-  const totalTop18Count = top18.length;
-  const totalTop18Pct = ((totalTop18Count / 18) * 100).toFixed(1);
+  }, [data?.teams, top18]);
 
   // Bảng 3: Bình chọn CSTĐ 2026
   // Lọc ra các nhân viên đảm bảo đủ các tiêu chí:
@@ -180,6 +158,7 @@ export function Admin() {
   //    • là 1 trong 18 người có số phiếu bầu nhiều nhất từ trên xuống (đạt danh hiệu lao động tiên tiến)
   //    • Có SÁNG KIẾN - Ý TƯỞNG
   const cstdList = useMemo(() => {
+    const cstdListSource = data?.cstd ?? [];
     return sortedCandidates
       .filter((c) => {
         // Tiêu chí 1: KI loại A trở lên
@@ -219,7 +198,7 @@ export function Admin() {
         return {
           ...c,
           cstdState:
-            data.cstd.find((r) => r.id === c.id)?.status ?? defaultReason,
+            cstdListSource.find((r) => r.id === c.id)?.status ?? defaultReason,
         };
       })
       .filter(
@@ -229,7 +208,31 @@ export function Admin() {
             .toLocaleLowerCase("vi")
             .includes(query.toLocaleLowerCase("vi")),
       );
-  }, [sortedCandidates, top18Ids, data.cstd, team, query]);
+  }, [sortedCandidates, top18Ids, data?.cstd, team, query]);
+
+  if (!data)
+    return (
+      <>
+        <Header />
+        <main className="page-shell">
+          <div className={loadError ? "error" : "empty"}>
+            {loadError?.message ?? "Đang tải trang tổng hợp kết quả…"}
+          </div>
+          <div className="mt-4">
+            <Link href="/" className="back-link">Về trang chủ</Link>
+          </div>
+        </main>
+      </>
+    );
+
+  const e = data.election,
+    snapshot = e?.snapshot ?? data.source,
+    total = snapshot?.candidates.length ?? 0,
+    submitted = data.submitted ?? 0,
+    percent = total ? Math.round((submitted / total) * 100) : 0;
+
+  const totalTop18Count = top18.length;
+  const totalTop18Pct = ((totalTop18Count / 18) * 100).toFixed(1);
 
   return (
     <>
