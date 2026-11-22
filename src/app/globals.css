@@ -822,33 +822,52 @@ form > label {
   color: #8b1e0f !important;
   font-weight: 700;
 }
-/* Badge hiển thị Sáng kiến & Khen thưởng với tông màu nâu đỏ trang trọng */
+/* Badge hiển thị Sáng kiến & Khen thưởng với màu sắc phân biệt rõ ràng */
 .merit-tag {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   font-size: 0.74rem;
   font-weight: 600;
-  padding: 3px 8px;
+  padding: 3.5px 9px;
   border-radius: 6px;
   line-height: 1.35;
   word-break: break-word;
+  transition: all 0.15s ease;
 }
 .merit-tag .merit-icon {
   flex-shrink: 0;
-  color: #8b1e0f;
 }
+
+/* 1. CỘT SÁNG KIẾN - Ý TƯỞNG: Tông Xanh lam công nghệ & trí tuệ sáng tạo */
 .initiative-tag {
-  background: #fdf2f0;
-  color: #8b1e0f;
-  border: 1px solid #fecaca;
+  background: #eff6ff !important;
+  color: #1e40af !important;
+  border: 1px solid #bfdbfe !important;
 }
+.initiative-tag .merit-icon {
+  color: #2563eb !important;
+}
+.initiative-tag:hover {
+  background: #dbeafe !important;
+  border-color: #93c5fd !important;
+}
+
+/* 2. CỘT KHEN THƯỞNG ĐV + TĐ: Tông Đỏ hồng danh dự & thành tích thi đua */
 .reward-tag {
-  background: #fff1f0;
-  color: #8b1e0f;
-  border: 1px solid #fca5a5;
+  background: #fff1f2 !important;
+  color: #9f1239 !important;
+  border: 1px solid #fecdd3 !important;
 }
-/* Dòng có merit trong bảng admin - chữ màu nâu đỏ */
+.reward-tag .merit-icon {
+  color: #e11d48 !important;
+}
+.reward-tag:hover {
+  background: #ffe4e6 !important;
+  border-color: #fda4af !important;
+}
+
+/* Dòng có merit trong bảng admin - chữ tên màu nâu đỏ trang trọng */
 tr.has-merit-row {
   background: #fdfaf9;
 }
@@ -857,11 +876,6 @@ tr.has-merit-row:hover {
 }
 tr.has-merit-row td.name-cell strong {
   color: #8b1e0f !important;
-}
-tr.has-merit-row .merit-tag {
-  color: #8b1e0f;
-  background: #fdf2f0;
-  border: 1px solid #fecaca;
 }
 .candidate-index {
   font-size: 0.75rem;
