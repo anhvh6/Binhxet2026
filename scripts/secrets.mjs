@@ -1,0 +1,3 @@
+import {randomBytes,scryptSync} from 'node:crypto';import readline from 'node:readline/promises';import {stdin,stdout} from 'node:process';
+const input=readline.createInterface({input:stdin,output:stdout});
+try{const admin=await input.question('Nhập mã quản trị (chỉ chạy trên máy tin cậy): '),edit=await input.question('Nhập mã xác nhận sửa: ');function encode(value){const salt=randomBytes(16).toString('hex');return `scrypt:${salt}:${scryptSync(value,salt,32).toString('hex')}`;}stdout.write(`\nBRIDGE_SECRET=${randomBytes(32).toString('hex')}\nSESSION_SECRET=${randomBytes(32).toString('hex')}\nADMIN_RESULT_CODE_HASH=${encode(admin)}\nBALLOT_EDIT_CODE_HASH=${encode(edit)}\n`);}finally{input.close();}
