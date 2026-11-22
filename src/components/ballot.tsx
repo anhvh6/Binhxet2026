@@ -21,7 +21,7 @@ import { Button } from "./ui/button";
 import { Dialog } from "./ui/dialog";
 import { api } from "@/lib/client";
 import type { Ballot, Me, ReviewResult } from "@/lib/types";
-import type { Candidate } from "@/lib/domain";
+import { validateChoices, type Candidate } from "@/lib/domain";
 
 export function BallotScreen() {
   const router = useRouter();
@@ -127,6 +127,7 @@ export function BallotScreen() {
     setBusy(true);
     setError("");
     try {
+      validateChoices(me.election.snapshot, selected);
       await api("ballot/validate", {
         choices: selected,
         revision: me.ballot?.revision ?? 0,

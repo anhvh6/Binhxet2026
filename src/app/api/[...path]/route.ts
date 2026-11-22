@@ -21,6 +21,7 @@ import {
   getSupabaseMe,
   unlockSupabaseEdit,
   submitSupabaseBallot,
+  validateSupabaseBallot,
   getSupabaseDashboard,
   resetSupabaseData,
 } from "@/server/supabase";
@@ -179,12 +180,22 @@ async function handle(req: NextRequest) {
       return response(await bridge("me", { tokenHash }));
     }
 
-    // 7. NỘP PHIẾU BÌNH CHỌN
+    // 7. NỘP VÀ XÁC THỰC PHIẾU BÌNH CHỌN
     if (
       !read &&
       ["ballot/validate", "ballot/submit", "ballot"].includes(path)
     ) {
       const input = ballotInput.parse(p);
+
+      if (path === "ballot/validate" && isSupabaseEnabled()) {
+        try {
+          const resVal = await validateSupabaseBallot(tokenHash, input.choices);
+          return response(resVal);
+        } catch (e) {
+          if (e instanceof AppError) throw e;
+          throw new AppError((e as Error).message || "Không thể xác thực lựa chọn.", 400);
+        }
+      }
 
       if (path === "ballot/submit" && isSupabaseEnabled()) {
         try {

@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import type { Dashboard, Progress, Me, Ballot, ReviewResult } from "@/lib/types";
-import type { Candidate, Team, Snapshot } from "@/lib/domain";
+import { AppError, validateChoices, type Candidate, type Team, type Snapshot } from "@/lib/domain";
 
 const SUPABASE_URL =
   process.env.SUPABASE_URL ||
@@ -539,4 +539,71 @@ export async function resetSupabaseData(): Promise<boolean> {
   });
 
   return true;
+}
+
+// 9. XÁC THỰC LỰA CHỌN PHIẾU BÌNH CHỌN (VALIDATE)
+export async function validateSupabaseBallot(
+  tokenHash: string,
+  choices: string[],
+): Promise<{ ok: boolean }> {
+  const sb = getSupabase();
+  if (!sb) throw new Error("Chưa cấu hình Supabase.");
+
+  const sessionRes = await sb
+    .from("sessions")
+    .select("*")
+    .eq("token_hash", tokenHash)
+    .gt("expires_at", new Date().toISOString())
+    .maybeSingle();
+
+  if (!sessionRes.data || !sessionRes.data.voter_code) {
+    throw new AppError("Phiên đăng nhập không hợp lệ hoặc đã hết hạn.", 401);
+  }
+
+  const [electionRes, teamsRes, candidatesRes] = await Promise.all([
+    sb.from("elections").select("status").eq("id", "vcx-2026").single(),
+    sb.from("teams").select("*").order("order_index", { ascending: true }),
+    sb.from("candidates").select("*"),
+  ]);
+
+  if (electionRes.data?.status !== "open") {
+    throw new AppError("Kỳ bình chọn đã đóng.", 409);
+  }
+
+  const teams: Team[] = (teamsRes.data || []).map((t) => ({
+    id: t.id,
+    label: t.label,
+    order: t.order_index,
+    size: t.size,
+    quota: t.quota,
+    lead: t.lead,
+  }));
+
+  const candidates: Candidate[] = (candidatesRes.data || []).map((c) => ({
+    id: c.id,
+    name: c.name,
+    team: c.team_id,
+    lead: c.is_lead,
+    score: Number(c.score),
+    ki: c.ki,
+    initiative: c.initiative,
+    reward: c.reward,
+    tenure: c.tenure,
+    performance: c.performance,
+    other: "",
+    basis: c.basis,
+    cstd: c.cstd,
+  }));
+
+  const snapshot: Snapshot = {
+    candidates,
+    teams,
+    warnings: [],
+    conflicts: [],
+    fetchedAt: new Date().toISOString(),
+  };
+
+  validateChoices(snapshot, choices);
+
+  return { ok: true };
 }

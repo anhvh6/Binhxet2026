@@ -787,26 +787,30 @@ form > label {
   opacity: 0.55;
   cursor: default;
 }
-/* Hàng cá nhân có Khen thưởng hoặc Sáng kiến - nổi bật tinh tế */
+/* Hàng cá nhân có Khen thưởng hoặc Sáng kiến - màu text nâu đỏ nổi bật sang trọng */
 .candidate-row.has-merit {
-  background: #f8fbff;
-  border-left: 3px solid #3b82f6;
+  background: #fdfaf9;
+  border-left: 3.5px solid #8b1e0f;
 }
 .candidate-row.has-merit:hover {
-  background: #eff6ff;
+  background: #fbf2ef;
 }
 .candidate-row.has-merit.selected {
   background: #fff5f6;
-  border-left: 3px solid var(--accent);
+  border-left: 3.5px solid var(--accent);
 }
 .candidate-row.has-merit .candidate-index {
-  color: #2563eb;
+  color: #8b1e0f;
   font-weight: 700;
 }
-.candidate-row.has-merit .candidate-name strong {
-  color: #0f172a;
+.candidate-row.has-merit .candidate-id {
+  color: #a84234;
 }
-/* Badge hiển thị Sáng kiến & Khen thưởng */
+.candidate-row.has-merit .candidate-name strong {
+  color: #8b1e0f !important;
+  font-weight: 700;
+}
+/* Badge hiển thị Sáng kiến & Khen thưởng với tông màu nâu đỏ trang trọng */
 .merit-tag {
   display: inline-flex;
   align-items: center;
@@ -820,23 +824,32 @@ form > label {
 }
 .merit-tag .merit-icon {
   flex-shrink: 0;
+  color: #8b1e0f;
 }
 .initiative-tag {
-  background: #eff6ff;
-  color: #1d4ed8;
-  border: 1px solid #bfdbfe;
+  background: #fdf2f0;
+  color: #8b1e0f;
+  border: 1px solid #fecaca;
 }
 .reward-tag {
-  background: #fffbeb;
-  color: #92400e;
-  border: 1px solid #fde68a;
+  background: #fff1f0;
+  color: #8b1e0f;
+  border: 1px solid #fca5a5;
 }
-/* Dòng có merit trong bảng admin */
+/* Dòng có merit trong bảng admin - chữ màu nâu đỏ */
 tr.has-merit-row {
-  background: #f8fbff;
+  background: #fdfaf9;
 }
 tr.has-merit-row:hover {
-  background: #eff6ff;
+  background: #fbf2ef;
+}
+tr.has-merit-row td.name-cell strong {
+  color: #8b1e0f !important;
+}
+tr.has-merit-row .merit-tag {
+  color: #8b1e0f;
+  background: #fdf2f0;
+  border: 1px solid #fecaca;
 }
 .candidate-index {
   font-size: 0.75rem;
