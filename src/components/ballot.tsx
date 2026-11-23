@@ -117,6 +117,9 @@ export function BallotScreen() {
         setStage("review");
         setNotice(`Đang hiển thị kết quả bình chọn của mã bí mật ${res.code}.`);
         setNextReviewCode("");
+        if (typeof window !== "undefined") {
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }
       }
     } catch (e) {
       setError((e as Error).message);
@@ -289,6 +292,11 @@ export function BallotScreen() {
                 placeholder="Nhập mã khác (4 số)"
                 value={nextReviewCode}
                 onChange={(e) => setNextReviewCode(e.target.value.replace(/\D/g, ""))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && nextReviewCode.length === 4) {
+                    void lookupNextCode();
+                  }
+                }}
                 className="px-3 py-1.5 border border-slate-300 rounded-md text-sm w-44"
               />
               <Button
@@ -380,7 +388,7 @@ export function BallotScreen() {
                     <p>
                       {onlySelected
                         ? `${people.length} người được chọn`
-                        : `Team ${team.id} (Cùng Team, Tích chọn ${team.quota} người) · ${team.size} nhân sự`}
+                        : `Team ${team.id} · ${team.size} nhân sự (Tích chọn ${team.quota} người)`}
                     </p>
                   </div>
                 </div>
@@ -396,7 +404,6 @@ export function BallotScreen() {
                 <div className="candidate-header">
                   <span>STT</span>
                   <span>MNV · HỌ VÀ TÊN</span>
-                  <span>TEAM</span>
                   <span>ĐIỂM TB / KI</span>
                   <span>SÁNG KIẾN - Ý TƯỞNG</span>
                   <span>KHEN THƯỞNG ĐV + TĐ</span>
@@ -438,7 +445,6 @@ export function BallotScreen() {
                           {c.lead && <em>Lead</em>}
                         </strong>
                       </div>
-                      <span className="candidate-team">{c.team}</span>
                       <span className="candidate-score">
                         <b>{c.score.toFixed(3)}</b>
                         <span className={`ki ki-${c.ki}`}>{c.ki}</span>

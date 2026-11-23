@@ -178,6 +178,26 @@ export function Admin() {
     );
   }, [top18, team, query]);
 
+  const totalCstdEligibleCount = useMemo(() => {
+    return sortedCandidates.filter((c) => {
+      const isKiA =
+        Boolean(c.ki) &&
+        (c.ki === "A" ||
+         c.ki === "A+" ||
+         c.ki.toUpperCase().startsWith("A"));
+      if (!isKiA) return false;
+
+      const isTop18 = top18Ids.has(c.id);
+      const hasInitiative =
+        Boolean(c.initiative) &&
+        c.initiative.trim() !== "" &&
+        c.initiative.trim() !== "—" &&
+        c.initiative.trim() !== "Không";
+
+      return isTop18 || hasInitiative;
+    }).length;
+  }, [sortedCandidates, top18Ids]);
+
   // Bảng 3: Bình chọn CSTĐ 2026
   // Lọc ra các nhân viên đảm bảo đủ các tiêu chí:
   // 1) Cột "Xếp loại KI dự kiến" đạt loại A trở lên (chỉ dùng điều kiện cột KI, không dùng điều kiện điểm)
@@ -335,10 +355,10 @@ export function Admin() {
             hint={`${submitted} phiếu × 18 lựa chọn/phiếu`}
           />
           <Stat
-            icon={<RefreshCw size={20} />}
-            label="Lưu trữ Google Sheets"
-            value="Đã kết nối"
-            hint={`Cập nhật lúc ${new Date(data.updatedAt).toLocaleTimeString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}`}
+            icon={<Award size={20} />}
+            label="Số lượng CSTĐ đạt yêu cầu"
+            value={String(totalCstdEligibleCount)}
+            hint="Tổng số nhân viên đạt CSTĐ dự kiến"
           />
         </div>
 
