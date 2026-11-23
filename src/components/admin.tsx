@@ -180,7 +180,7 @@ export function Admin() {
 
   // Bảng 3: Bình chọn CSTĐ 2026
   // Lọc ra các nhân viên đảm bảo đủ các tiêu chí:
-  // 1) Kết quả xếp loại KI năm 2026: Đạt loại A trở lên (Điểm TB 3 quý >= 3.5 hoặc xếp loại A)
+  // 1) Cột "Xếp loại KI dự kiến" đạt loại A trở lên (chỉ dùng điều kiện cột KI, không dùng điều kiện điểm)
   // 2) Đạt 1 trong các tiêu chuẩn thành tích:
   //    • Là 1 trong 18 người có số phiếu bầu nhiều nhất từ trên xuống (đạt danh hiệu LĐTT)
   //    • HOẶC có SÁNG KIẾN - Ý TƯỞNG
@@ -188,12 +188,12 @@ export function Admin() {
     const cstdListSource = data?.cstd ?? [];
     return sortedCandidates
       .filter((c) => {
-        // Tiêu chí 1: Điểm TB 3 quý >= 3.5 (quy đổi KI loại A theo quy định TĐKT số 164/HD-CTNS) hoặc ghi nhận loại A
+        // Tiêu chí 1: Chỉ lọc theo cột "Xếp loại KI dự kiến", loại bỏ các cá nhân có KI dưới A (B, C, D)
         const isKiA =
-          c.score >= 3.5 ||
-          c.ki === "A" ||
-          c.ki === "A+" ||
-          c.ki?.toUpperCase().startsWith("A");
+          Boolean(c.ki) &&
+          (c.ki === "A" ||
+           c.ki === "A+" ||
+           c.ki.toUpperCase().startsWith("A"));
         if (!isKiA) return false;
 
         // Tiêu chí 2: Đạt 1 trong các tiêu chuẩn: Thuộc Top 18 LĐTT HOẶC Có Sáng kiến - Ý tưởng
@@ -379,7 +379,7 @@ export function Admin() {
                   ? "Xếp theo thứ tự từ cao xuống thấp số lượt được bình chọn trong cột 'Bình chọn LĐTT' không phân biệt team."
                   : tab === "teams"
                     ? "Tổng hợp số nhân sự của từng team nằm trong Top 18 người có số phiếu bầu lớn nhất từ trên xuống (đạt danh hiệu LĐTT) và tỷ lệ % trên 18."
-                    : "Lọc các nhân sự đủ tiêu chuẩn: KI năm 2026 đạt loại A trở lên (Điểm TB >= 3.5) VÀ (thuộc Top 18 LĐTT có số phiếu bầu nhiều nhất HOẶC có Sáng kiến - Ý tưởng)."}
+                    : "Lọc các nhân sự đủ tiêu chuẩn: Cột Xếp loại KI dự kiến đạt loại A trở lên VÀ (thuộc Top 18 LĐTT có số phiếu bầu nhiều nhất HOẶC có Sáng kiến - Ý tưởng)."}
               </p>
             </div>
             <BarChart3 size={24} />

@@ -120,19 +120,23 @@ function parseSource(p,b,t){
   ];
 
   var teams = t.filter(function(r){
-    return (/^[IVX]+$/i.test(r[0]) || /^\d+$/.test(r[0])) && r[1] && r[1] !== 'Team' && r[0] !== 'Tổng cộng';
+    var r0 = String(r[0] || '').trim();
+    var r1 = String(r[1] || '').trim();
+    return (/^[IVX]+$/i.test(r0) || /^\d+$/.test(r0)) && r1 && r1 !== 'Team' && r0 !== 'Tổng cộng';
   }).map(function(r, i){
-    var d = defaultTeams.find(function(item){ return item.id === r[1]; });
+    var r0 = String(r[0] || '').trim();
+    var r1 = String(r[1] || '').trim();
+    var d = defaultTeams.find(function(item){ return item.id === r1; });
     var size = Number(r[2]) || (d ? d.size : 0);
     var quota = Math.floor(size / 2);
     var rawLead = String(r[4] || '').trim();
     var isPctOrEmpty = !rawLead || rawLead.indexOf('%') >= 0 || /^\d+(\.\d+)?$/.test(rawLead);
     var lead = isPctOrEmpty ? (d ? d.lead : '') : rawLead;
-    if (r[1] === 'QA' && (!lead || lead === 'Chưa xác định Lead')) lead = 'Võ Hoàng Anh';
+    if (r1 === 'QA' && (!lead || lead === 'Chưa xác định Lead')) lead = 'Võ Hoàng Anh';
 
     return {
-      id: r[1],
-      label: /^[IVX]+$/i.test(r[0]) ? r[0] : (d ? d.label : String(i + 1)),
+      id: r1,
+      label: /^[IVX]+$/i.test(r0) ? r0 : (d ? d.label : String(i + 1)),
       order: i,
       size: size,
       quota: quota,
@@ -156,7 +160,16 @@ function parseSource(p,b,t){
  });
  Object.keys(map).forEach(function(id){if(/^Đạt/.test(map[id][45])&&/Đủ chuẩn/.test(map[id][52])&&!official[id])conflicts.push('Thiếu ở Binh xet: '+id);});
  people.forEach(function(c){if(!teams.some(function(t){return t.id===c.team;}))conflicts.push('Team chưa có cấu hình: '+c.team);});
- teams.forEach(function(team){var members=people.filter(function(c){return c.team===team.id;}),leads=members.filter(function(c){return c.lead;});if(members.length!==team.size)conflicts.push('Quân số khác cấu hình: '+team.id);if(!Number.isInteger(team.quota)||team.quota!==Math.floor(members.length/2))conflicts.push('Chỉ tiêu khác FLOOR(quân số/2): '+team.id);if(leads.length!==1)warnings.push('Team '+team.id+': '+leads.length+' Lead được xác định.');if(leads.length===1&&team.lead&&team.lead!=='Chưa xác định Lead'&&team.lead.indexOf('%')<0&&team.lead!==leads[0].name)conflicts.push('Lead khác cấu hình: '+team.id);});
+ teams.forEach(function(team){
+   var members = people.filter(function(c){ return c.team === team.id; }),
+       leads = members.filter(function(c){ return c.lead; });
+   if (members.length !== team.size) team.size = members.length;
+   if (!Number.isInteger(team.quota) || team.quota !== Math.floor(members.length / 2)) team.quota = Math.floor(members.length / 2);
+   if (leads.length !== 1) warnings.push('Team ' + team.id + ': ' + leads.length + ' Lead được xác định.');
+   if (leads.length === 1) {
+     team.lead = leads[0].name;
+   }
+ });
  var errors=0;p.forEach(function(r){r.forEach(function(v){if(/^#(ERROR|N\/A|REF|VALUE)/.test(v))errors++;});});if(errors)warnings.push('PTUD (2) có '+errors+' ô lỗi công thức ở dữ liệu nguồn; chưa sửa nguồn.');
  people.sort(function(a,b){return teams.findIndex(function(t){return t.id===a.team;})-teams.findIndex(function(t){return t.id===b.team;})||Number(b.lead)-Number(a.lead)||b.score-a.score||a.id.localeCompare(b.id);});
  return {candidates:people,teams:teams,warnings:warnings,conflicts:conflicts,fetchedAt:new Date().toISOString()};
@@ -659,10 +672,9 @@ function syncCstdSheet() {
   cstdStatusData.forEach(function(s) { statusMap[s.candidate_id] = s.status; });
 
   var cstdCandidates = ldttData.filter(function(c) {
-    // Tiêu chí 1: Điểm TB 3 quý >= 3.5 (quy đổi chuẩn KI loại A theo quy chế 164/HD-CTNS) hoặc ghi nhận loại A
-    var scoreNum = Number(c.score) || 0;
+    // Tiêu chí 1: Chỉ lọc theo cột "Xếp loại KI dự kiến" đạt loại A trở lên (A, A+ hoặc bắt đầu bằng A), không dùng điểm
     var kiStr = String(c.ki || '').trim().toUpperCase();
-    var isKiA = (scoreNum >= 3.5 || kiStr === 'A' || kiStr === 'A+' || kiStr.indexOf('A') === 0);
+    var isKiA = (kiStr === 'A' || kiStr === 'A+' || kiStr.indexOf('A') === 0);
     if (!isKiA) return false;
 
     // Tiêu chí 2: Đạt 1 trong các tiêu chuẩn: Thuộc Top 18 LĐTT HOẶC Có Sáng kiến - Ý tưởng
@@ -919,11 +931,15 @@ function pushAllToSupabase() {
         lead: t.lead
       };
     });
-    callSupabaseApi('teams', {
-      method: 'post',
-      prefer: 'resolution=merge-duplicates',
-      payload: teamsPayload
-    });
+    try {
+      callSupabaseApi('teams', {
+        method: 'post',
+        prefer: 'resolution=merge-duplicates',
+        payload: teamsPayload
+      });
+    } catch (teamErr) {
+      Logger.log('Supabase teams sync note (RLS): ' + teamErr.message);
+    }
 
     // 2. Đẩy Candidates
     var candidatesPayload = source.candidates.map(function(c) {
@@ -1026,11 +1042,15 @@ function pushCurrentSheetToSupabase() {
           lead: t.lead
         };
       });
-      callSupabaseApi('teams', {
-        method: 'post',
-        prefer: 'resolution=merge-duplicates',
-        payload: teamsPayload
-      });
+      try {
+        callSupabaseApi('teams', {
+          method: 'post',
+          prefer: 'resolution=merge-duplicates',
+          payload: teamsPayload
+        });
+      } catch (teamErr) {
+        Logger.log('Supabase teams sync note (RLS): ' + teamErr.message);
+      }
 
       var candidatesPayload = source.candidates.map(function(c) {
         return {

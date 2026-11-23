@@ -123,16 +123,16 @@ export async function exportExcel(data: Dashboard) {
 
   // Bảng 3: Bình chọn CSTĐ 2026
   // Lọc ra các nhân viên đảm bảo đủ các tiêu chí:
-  // 1) Kết quả xếp loại KI năm 2026: Đạt loại A trở lên (Điểm TB >= 3.5 hoặc xếp loại A)
+  // 1) Cột "Xếp loại KI dự kiến" đạt loại A trở lên (chỉ dùng điều kiện cột KI, không dùng điều kiện điểm)
   // 2) Đạt 1 trong các tiêu chuẩn thành tích:
   //    • Là 1 trong 18 người có số phiếu bầu nhiều nhất từ trên xuống (đạt danh hiệu LĐTT)
   //    • HOẶC có SÁNG KIẾN - Ý TƯỞNG
   const cstdCandidates = sorted.filter((c) => {
     const isKiA =
-      c.score >= 3.5 ||
-      c.ki === "A" ||
-      c.ki === "A+" ||
-      c.ki?.toUpperCase().startsWith("A");
+      Boolean(c.ki) &&
+      (c.ki === "A" ||
+       c.ki === "A+" ||
+       c.ki.toUpperCase().startsWith("A"));
     if (!isKiA) return false;
 
     const isTop18 = top18Ids.has(c.id);
